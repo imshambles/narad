@@ -9,7 +9,8 @@ from sqlalchemy.orm import joinedload
 
 from narad.database import get_session
 from narad.models import (
-    Article, Briefing, Event, EventArticle, EventRelationship, FetchLog, Source,
+    Article, Briefing, Entity, EntityMention, Event, EventArticle,
+    EventRelationship, FetchLog, Signal, Source, ThreatMatrix,
 )
 
 from datetime import datetime, timedelta, timezone
@@ -244,6 +245,89 @@ async def feed(
             "india_sources": india_sources,
             "selected_source": source,
             "active_tab": "feed",
+        },
+    )
+
+
+# ──────────────────────────────────────────────
+# /intel  — Intelligence dashboard
+# ──────────────────────────────────────────────
+@router.get("/intel")
+async def intel_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    import json as _json
+
+    # Intelligence assessments (from the analyst engine)
+    assess_result = await session.execute(
+        select(Signal)
+        .where(Signal.signal_type == "assessment")
+        .where(Signal.is_active == True)
+        .order_by(Signal.severity.desc(), Signal.detected_at.desc())
+        .limit(10)
+    )
+    assessments = [
+        {
+            "title": s.title, "description": s.description,
+            "severity": s.severity, "detected_at": s.detected_at,
+            "data": _json.loads(s.data_json or "{}"),
+        }
+        for s in assess_result.scalars().all()
+    ]
+
+    # Extract strategic warning and relationship insights from first assessment's data
+    strategic_warning = None
+    relationship_insights = []
+    if assessments:
+        first_data = assessments[0].get("data", {})
+        strategic_warning = first_data.get("strategic_warning")
+        relationship_insights = first_data.get("relationship_insights", [])
+
+    # Threat matrix
+    tm_result = await session.execute(
+        select(ThreatMatrix).order_by((ThreatMatrix.tension_score + ThreatMatrix.cooperation_score).desc())
+    )
+    threat_matrix = []
+    for tm in tm_result.scalars().all():
+        country = await session.get(Entity, tm.country_entity_id)
+        if not country:
+            continue
+        threat_matrix.append({
+            "country": country.name,
+            "cooperation": tm.cooperation_score,
+            "tension": tm.tension_score,
+            "trend": tm.trend,
+            "recent_events": _json.loads(tm.recent_events_json or "[]"),
+        })
+
+    # Top entities
+    ent_result = await session.execute(
+        select(Entity).order_by(Entity.mention_count.desc()).limit(24)
+    )
+    top_entities = [
+        {"name": e.name, "type": e.entity_type, "mentions": e.mention_count}
+        for e in ent_result.scalars().all()
+    ]
+
+    # Counts
+    entities_count = (await session.execute(select(func.count()).select_from(Entity))).scalar() or 0
+    entity_events_processed = (await session.execute(
+        select(func.count(func.distinct(EntityMention.event_id))).select_from(EntityMention)
+    )).scalar() or 0
+
+    return templates.TemplateResponse(
+        request,
+        "intel.html",
+        {
+            "active_tab": "intel",
+            "assessments": assessments,
+            "strategic_warning": strategic_warning,
+            "relationship_insights": relationship_insights,
+            "threat_matrix": threat_matrix,
+            "top_entities": top_entities,
+            "entities_count": entities_count,
+            "entity_events_processed": entity_events_processed,
         },
     )
 

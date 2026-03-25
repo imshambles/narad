@@ -10,6 +10,9 @@ from narad.pipeline.normalizer import normalize_article
 from narad.sources.rss import RSSAdapter
 from narad.sources.gdelt import GDELTAdapter
 from narad.sources.newsapi import NewsAPIAdapter
+from narad.sources.reddit import RedditAdapter
+from narad.sources.thinktanks import MultiThinkTankAdapter
+from narad.sources.osint_twitter import OSINTTwitterAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,12 @@ def get_adapter(source: Source):
         return GDELTAdapter(source_name=source.name)
     elif source.source_type == "newsapi":
         return NewsAPIAdapter(source_name=source.name)
+    elif source.source_type == "reddit":
+        return RedditAdapter(source_name=source.name)
+    elif source.source_type == "thinktank":
+        return MultiThinkTankAdapter(source_name=source.name)
+    elif source.source_type == "osint_twitter":
+        return OSINTTwitterAdapter(source_name=source.name)
     return None
 
 
@@ -147,6 +156,10 @@ async def start_scheduler():
     )
 
     from narad.pipeline.briefing import generate_briefing
+    from narad.intel.entity_graph import update_entity_graph
+    from narad.intel.threat_matrix import update_threat_matrix
+    from narad.intel.signals import detect_signals
+    from narad.intel.analyst import run_intelligence_analysis
 
     scheduler.add_job(
         generate_briefing, "interval", minutes=30,
@@ -154,5 +167,29 @@ async def start_scheduler():
         next_run_time=now + timedelta(minutes=5),
     )
 
+    # Intelligence layer — runs after summarization populates entities
+    scheduler.add_job(
+        update_entity_graph, "interval", minutes=10,
+        id="entity_graph", replace_existing=True,
+        next_run_time=now + timedelta(minutes=3),
+    )
+    scheduler.add_job(
+        update_threat_matrix, "interval", minutes=15,
+        id="threat_matrix", replace_existing=True,
+        next_run_time=now + timedelta(minutes=6),
+    )
+    scheduler.add_job(
+        detect_signals, "interval", minutes=15,
+        id="signals", replace_existing=True,
+        next_run_time=now + timedelta(minutes=7),
+    )
+
+    # Intelligence analyst — runs after entity graph and threat matrix are populated
+    scheduler.add_job(
+        run_intelligence_analysis, "interval", minutes=30,
+        id="intel_analyst", replace_existing=True,
+        next_run_time=now + timedelta(minutes=8),
+    )
+
     scheduler.start()
-    logger.info(f"Scheduler started with {len(sources)} source(s) + clustering/summarization/graph/briefing jobs")
+    logger.info(f"Scheduler started with {len(sources)} source(s) + full intelligence pipeline")

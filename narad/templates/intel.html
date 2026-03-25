@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+    <p class="font-mono text-[10px] sm:text-[11px] text-white/20 uppercase tracking-widest">Intelligence Assessments</p>
+    <span class="font-mono text-[10px] text-white/15">{{ entities_count }} entities tracked</span>
+</div>
+
+<!-- ============================================================ -->
+<!-- STRATEGIC WARNING (if available)                               -->
+<!-- ============================================================ -->
+{% if strategic_warning %}
+<div class="bg-red-500/5 border border-red-500/20 rounded-lg p-4 sm:p-5 mb-4 sm:mb-5">
+    <div class="flex items-center gap-2 mb-2">
+        <span class="w-2 h-2 rounded-full bg-red-500 pulse-dot"></span>
+        <p class="font-mono text-[9px] sm:text-[10px] text-red-400 uppercase tracking-widest">Priority Intelligence Warning</p>
+    </div>
+    <p class="text-[13px] sm:text-sm text-red-200/80 leading-relaxed">{{ strategic_warning }}</p>
+</div>
+{% endif %}
+
+<!-- ============================================================ -->
+<!-- ASSESSMENTS                                                    -->
+<!-- ============================================================ -->
+{% if assessments %}
+<div class="space-y-3 mb-5 sm:mb-6">
+    {% for a in assessments %}
+    <div class="bg-surface-2 border rounded-lg overflow-hidden
+        {% if a.severity == 'critical' %}border-red-500/20 glow-red
+        {% elif a.severity == 'high' %}border-amber-500/15
+        {% else %}border-white/5{% endif %}">
+
+        <div class="h-0.5
+            {% if a.severity == 'critical' %}bg-red-500
+            {% elif a.severity == 'high' %}bg-amber-500
+            {% elif a.severity == 'medium' %}bg-blue-500
+            {% else %}bg-white/10{% endif %}"></div>
+
+        <div class="p-4 sm:p-5">
+            <!-- Header -->
+            <div class="flex items-center gap-2 mb-2 flex-wrap">
+                <span class="font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded
+                    {% if a.severity == 'critical' %}bg-red-500/10 text-red-400
+                    {% elif a.severity == 'high' %}bg-amber-500/10 text-amber-400
+                    {% elif a.severity == 'medium' %}bg-blue-500/10 text-blue-400
+                    {% else %}bg-white/5 text-white/30{% endif %}">{{ a.severity }}</span>
+                {% if a.data.classification %}
+                <span class="font-mono text-[9px] uppercase tracking-widest text-white/20">{{ a.data.classification | replace('_', ' ') }}</span>
+                {% endif %}
+                {% if a.data.confidence %}
+                <span class="font-mono text-[9px] text-white/15 ml-auto">{{ a.data.confidence }} confidence</span>
+                {% endif %}
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-[14px] sm:text-[15px] font-semibold text-white/85 leading-snug mb-2">{{ a.title }}</h3>
+
+            <!-- Analysis -->
+            <p class="text-[12px] sm:text-[13px] text-white/50 leading-relaxed mb-3">{{ a.description }}</p>
+
+            <!-- India implication -->
+            {% if a.data.india_implication %}
+            <div class="bg-orange-500/5 border-l-2 border-orange-500/40 px-3 py-2 rounded-r mb-3">
+                <p class="font-mono text-[9px] text-orange-400 uppercase tracking-widest mb-0.5">India Implication</p>
+                <p class="text-[12px] sm:text-[13px] text-orange-200/60 leading-relaxed">{{ a.data.india_implication }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Watch indicators + time horizon -->
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                {% if a.data.recommended_watch %}
+                <div class="flex flex-wrap gap-1">
+                    {% for w in a.data.recommended_watch %}
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-white/5 border border-white/5 rounded font-mono text-[10px] text-white/30">
+                        <span class="text-amber-500">&#x25C9;</span>{{ w }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if a.data.time_horizon %}
+                <span class="font-mono text-[9px] text-white/15 flex-shrink-0">{{ a.data.time_horizon }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-surface-2 border border-white/5 rounded-lg p-6 mb-5 text-center">
+    <div class="inline-flex items-center justify-center w-10 h-10 border border-white/10 rounded-full mb-3">
+        <span class="w-2 h-2 rounded-full bg-white/20 pulse-dot"></span>
+    </div>
+    <p class="font-mono text-[11px] text-white/30 mb-1">ANALYZING</p>
+    <p class="text-[12px] text-white/15">Intelligence assessments will appear after events are analyzed. First analysis runs ~8 minutes after startup.</p>
+</div>
+{% endif %}
+
+<!-- ============================================================ -->
+<!-- RELATIONSHIP INSIGHTS                                         -->
+<!-- ============================================================ -->
+{% if relationship_insights %}
+<div class="bg-surface-2 border border-white/5 rounded-lg p-4 sm:p-5 mb-4 sm:mb-5">
+    <p class="font-mono text-[9px] sm:text-[10px] text-white/20 uppercase tracking-widest mb-3">Relationship Shifts</p>
+    <div class="space-y-2">
+        {% for ri in relationship_insights %}
+        <div class="flex items-start gap-2">
+            <span class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0
+                {% if ri.direction == 'warming' %}bg-green-400
+                {% elif ri.direction == 'cooling' %}bg-red-400
+                {% elif ri.direction == 'volatile' %}bg-amber-400
+                {% else %}bg-purple-400{% endif %}"></span>
+            <div>
+                <span class="font-mono text-[10px] text-white/40">{{ ri.countries | join(' ↔ ') }}</span>
+                <p class="text-[12px] sm:text-[13px] text-white/45 leading-relaxed">{{ ri.insight }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- ============================================================ -->
+<!-- INDIA THREAT MATRIX                                           -->
+<!-- ============================================================ -->
+{% if threat_matrix %}
+<div class="bg-surface-2 border border-white/5 rounded-lg p-4 sm:p-5 mb-4 sm:mb-5">
+    <p class="font-mono text-[9px] sm:text-[10px] text-white/20 uppercase tracking-widest mb-1">India Bilateral Tracker</p>
+    <p class="font-mono text-[9px] text-white/10 mb-3">Cooperation vs tension derived from event analysis</p>
+
+    <div class="space-y-2">
+        {% for entry in threat_matrix %}
+        <div class="bg-surface-3 rounded-md p-3">
+            <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                    <span class="text-[13px] font-medium text-white/60">{{ entry.country }}</span>
+                    <span class="font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded
+                        {% if entry.trend == 'warming' %}bg-green-500/10 text-green-400
+                        {% elif entry.trend == 'cooling' %}bg-red-500/10 text-red-400
+                        {% elif entry.trend == 'volatile' %}bg-amber-500/10 text-amber-400
+                        {% else %}bg-white/5 text-white/20{% endif %}">{{ entry.trend }}</span>
+                </div>
+                <div class="flex gap-3 font-mono text-[10px]">
+                    <span class="text-green-400/60">+{{ "%.0f" | format(entry.cooperation * 100) }}%</span>
+                    <span class="text-red-400/60">-{{ "%.0f" | format(entry.tension * 100) }}%</span>
+                </div>
+            </div>
+            <div class="flex gap-1 h-1 rounded-full overflow-hidden bg-surface-1">
+                <div class="bg-green-500/50 rounded-full" style="width: {{ entry.cooperation * 100 }}%"></div>
+                <div class="flex-1"></div>
+                <div class="bg-red-500/50 rounded-full" style="width: {{ entry.tension * 100 }}%"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- ============================================================ -->
+<!-- ENTITY TRACKER                                                -->
+<!-- ============================================================ -->
+{% if top_entities %}
+<div class="bg-surface-2 border border-white/5 rounded-lg p-4 sm:p-5">
+    <p class="font-mono text-[9px] sm:text-[10px] text-white/20 uppercase tracking-widest mb-3">Active Entities</p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+        {% for ent in top_entities %}
+        <div class="bg-surface-3 rounded px-2.5 py-1.5 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0
+                {% if ent.type == 'country' %}bg-blue-400
+                {% elif ent.type == 'person' %}bg-purple-400
+                {% elif ent.type == 'organization' %}bg-green-400
+                {% else %}bg-white/20{% endif %}"></span>
+            <span class="text-[11px] sm:text-[12px] text-white/50 truncate">{{ ent.name }}</span>
+            <span class="font-mono text-[9px] text-white/15 ml-auto flex-shrink-0">{{ ent.mentions }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<script>setTimeout(() => location.reload(), 60000);</script>
+{% endblock %}

@@ -51,6 +51,10 @@ async def seed_sources():
         {"name": "GDELT", "source_type": "gdelt", "url": "https://api.gdeltproject.org/api/v2/doc/doc", "fetch_interval_sec": 300},
         # Aggregator (disabled until API key added)
         {"name": "NewsAPI", "source_type": "newsapi", "url": "https://newsapi.org/v2/top-headlines", "fetch_interval_sec": 900},
+        # OSINT crawlers
+        {"name": "Reddit OSINT", "source_type": "reddit", "url": "https://reddit.com", "fetch_interval_sec": 600},
+        {"name": "Think Tanks", "source_type": "thinktank", "url": "https://thinktanks.narad", "fetch_interval_sec": 900},
+        {"name": "OSINT Twitter", "source_type": "osint_twitter", "url": "https://twitter.com", "fetch_interval_sec": 600},
     ]
 
     # Sources to deactivate (biased/propaganda)
@@ -87,10 +91,12 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # Register routes
 from narad.api.articles import router as articles_router
 from narad.api.events import router as events_router
+from narad.api.intel import router as intel_router
 from narad.web.views import router as web_router
 
 app.include_router(articles_router, prefix="/api")
 app.include_router(events_router, prefix="/api")
+app.include_router(intel_router, prefix="/api")
 app.include_router(web_router)
 
 

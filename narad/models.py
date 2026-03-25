@@ -130,3 +130,102 @@ class Briefing(Base):
     connections_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     outlook_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # predictive scenarios
     is_current: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+# ──────────────────────────────────────────────
+# INTELLIGENCE LAYER — Entity Knowledge Graph
+# ──────────────────────────────────────────────
+
+class Entity(Base):
+    """A persistent geopolitical entity: country, leader, organization, etc."""
+    __tablename__ = "entities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    entity_type: Mapped[str] = mapped_column(String, nullable=False)  # country, person, organization, location
+    canonical_name: Mapped[str] = mapped_column(String, unique=True, nullable=False)  # lowercase normalized
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    mention_count: Mapped[int] = mapped_column(Integer, default=0)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # extra info
+
+    __table_args__ = (
+        Index("idx_entity_canonical", "canonical_name"),
+        Index("idx_entity_type", "entity_type"),
+        Index("idx_entity_mentions", "mention_count"),
+    )
+
+
+class EntityRelation(Base):
+    """A weighted, evolving relationship between two entities."""
+    __tablename__ = "entity_relations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    entity_a_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), nullable=False)
+    entity_b_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), nullable=False)
+    relation_type: Mapped[str] = mapped_column(String, nullable=False)  # cooperation, tension, trade, conflict, diplomacy
+    weight: Mapped[float] = mapped_column(Float, default=0.0)  # -1.0 (hostile) to +1.0 (allied)
+    co_occurrence_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    trend: Mapped[str | None] = mapped_column(String, nullable=True)  # warming, cooling, stable
+    context_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # recent context snippets
+
+    __table_args__ = (
+        Index("idx_er_a", "entity_a_id"),
+        Index("idx_er_b", "entity_b_id"),
+    )
+
+
+class EntityMention(Base):
+    """Tracks when an entity was mentioned in an event, with sentiment."""
+    __tablename__ = "entity_mentions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    entity_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), nullable=False)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), nullable=False)
+    sentiment: Mapped[float] = mapped_column(Float, default=0.0)  # -1.0 to +1.0
+    mentioned_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    __table_args__ = (
+        Index("idx_em_entity", "entity_id"),
+        Index("idx_em_event", "event_id"),
+        Index("idx_em_time", "mentioned_at"),
+    )
+
+
+class ThreatMatrix(Base):
+    """India's bilateral relationship score with each country, tracked over time."""
+    __tablename__ = "threat_matrix"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    country_entity_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), nullable=False)
+    cooperation_score: Mapped[float] = mapped_column(Float, default=0.0)  # 0 to 1
+    tension_score: Mapped[float] = mapped_column(Float, default=0.0)  # 0 to 1
+    trend: Mapped[str] = mapped_column(String, default="stable")  # warming, cooling, stable, volatile
+    recent_events_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # recent event summaries
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    __table_args__ = (
+        Index("idx_tm_country", "country_entity_id"),
+    )
+
+
+class Signal(Base):
+    """Detected anomaly or pattern — an intelligence signal."""
+    __tablename__ = "signals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    signal_type: Mapped[str] = mapped_column(String, nullable=False)  # spike, trend_shift, pattern_match, new_entity
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String, default="low")  # low, medium, high, critical
+    entity_ids_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # related entity IDs
+    data_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # signal-specific data
+    detected_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    __table_args__ = (
+        Index("idx_signal_type", "signal_type"),
+        Index("idx_signal_severity", "severity"),
+        Index("idx_signal_time", "detected_at"),
+    )
