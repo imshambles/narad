@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block head %}
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+    #graph-container {
+        width: 100%;
+        height: calc(100vh - 180px);
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        background: #fafafa;
+    }
+    #event-panel { display: none; }
+    #event-panel.active { display: block; }
+    #empty-state { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page explanation -->
+<div class="mb-4">
+    <p class="text-sm text-gray-400">This graph shows how geopolitical events are connected — through shared countries, people, organizations, or topics. Each dot is an event; lines connect related events.</p>
+</div>
+
+<!-- Empty state -->
+<div id="empty-state" class="text-center py-20 bg-white rounded-lg border border-gray-100">
+    <svg class="mx-auto mb-4 w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+    </svg>
+    <p class="text-gray-700 font-medium">No event connections found yet</p>
+    <p class="text-gray-400 text-sm mt-1 max-w-md mx-auto">Narad needs to analyze events with AI before it can find connections between them. This runs automatically every 10 minutes — check back shortly.</p>
+    <a href="/" class="inline-block mt-4 text-sm text-blue-600 hover:underline">View events instead &rarr;</a>
+</div>
+
+<div id="graph-wrapper" class="flex gap-4" style="height: calc(100vh - 180px); display: none;">
+    <div class="flex-1">
+        <div id="graph-container"></div>
+    </div>
+    <div id="event-panel" class="w-80 bg-white rounded border border-gray-200 p-5 overflow-y-auto flex-shrink-0">
+        <div class="flex items-center gap-2 mb-3">
+            <span id="panel-category" class="inline-block px-2 py-0.5 rounded text-xs font-medium"></span>
+        </div>
+        <h3 id="panel-title" class="font-bold text-base mb-2 leading-snug"></h3>
+        <p id="panel-summary" class="text-sm text-gray-600 mb-4"></p>
+        <div id="panel-meta" class="text-xs text-gray-500 mb-4"></div>
+        <div id="panel-entities" class="flex gap-1.5 flex-wrap mb-4"></div>
+        <a id="panel-link" href="#" class="inline-block px-4 py-2 bg-gray-900 text-white text-sm rounded hover:bg-gray-700 transition-colors">View event details</a>
+    </div>
+</div>
+
+<script>
+const CATEGORY_COLORS = {
+    conflict: { bg: '#FEE2E2', border: '#EF4444', text: '#991B1B' },
+    diplomacy: { bg: '#DBEAFE', border: '#3B82F6', text: '#1E40AF' },
+    economy: { bg: '#D1FAE5', border: '#10B981', text: '#065F46' },
+    defense: { bg: '#FFEDD5', border: '#F97316', text: '#9A3412' },
+    humanitarian: { bg: '#EDE9FE', border: '#8B5CF6', text: '#5B21B6' },
+    politics: { bg: '#FEF9C3', border: '#EAB308', text: '#854D0E' },
+    technology: { bg: '#CFFAFE', border: '#06B6D4', text: '#155E75' },
+    environment: { bg: '#DCFCE7', border: '#22C55E', text: '#166534' },
+    other: { bg: '#F3F4F6', border: '#6B7280', text: '#374151' },
+};
+
+async function loadGraph() {
+    const resp = await fetch('/api/events/graph?hours=72');
+    const data = await resp.json();
+
+    // Only show nodes that have at least one edge
+    const connectedIds = new Set();
+    data.edges.forEach(e => { connectedIds.add(e.source); connectedIds.add(e.target); });
+    const connectedNodes = data.nodes.filter(n => connectedIds.has(n.id));
+
+    if (connectedNodes.length === 0) {
+        document.getElementById('empty-state').style.display = 'block';
+        return;
+    }
+
+    document.getElementById('graph-wrapper').style.display = 'flex';
+
+    const colors = (cat) => CATEGORY_COLORS[cat] || CATEGORY_COLORS.other;
+
+    const nodes = new vis.DataSet(connectedNodes.map(n => {
+        const c = colors(n.category);
+        return {
+            id: n.id,
+            label: n.title.length > 50 ? n.title.substring(0, 50) + '...' : n.title,
+            title: n.title,
+            size: Math.min(12 + n.article_count * 4, 50),
+            color: { background: c.bg, border: c.border, highlight: { background: c.bg, border: '#111' } },
+            font: { size: 12, color: '#1F2937', face: 'system-ui', multi: true },
+            shape: 'dot',
+            borderWidth: 2,
+            _data: n,
+        };
+    }));
+
+    const edges = new vis.DataSet(data.edges.map((e, i) => ({
+        id: i,
+        from: e.source,
+        to: e.target,
+        width: Math.max(e.weight * 5, 1.5),
+        color: { color: e.relationship_type === 'shared_entity' ? '#93C5FD' : '#D1D5DB', opacity: 0.7 },
+        label: e.shared_entities && e.shared_entities.length ? e.shared_entities.slice(0, 2).join(', ') : '',
+        font: { size: 10, color: '#6B7280', strokeWidth: 3, strokeColor: '#fff' },
+        smooth: { type: 'continuous', roundness: 0.3 },
+    })));
+
+    const container = document.getElementById('graph-container');
+    const network = new vis.Network(container, { nodes, edges }, {
+        physics: {
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: { gravitationalConstant: -50, centralGravity: 0.008, springLength: 200, springConstant: 0.04 },
+            stabilization: { iterations: 150 },
+        },
+        interaction: { hover: true, tooltipDelay: 100, zoomView: true },
+        nodes: { shadow: { enabled: true, color: 'rgba(0,0,0,0.08)', size: 8, x: 2, y: 2 } },
+    });
+
+    network.on('click', function(params) {
+        if (params.nodes.length > 0) {
+            const node = nodes.get(params.nodes[0]);
+            showPanel(node._data);
+        } else {
+            document.getElementById('event-panel').classList.remove('active');
+        }
+    });
+}
+
+function showPanel(data) {
+    const panel = document.getElementById('event-panel');
+    panel.classList.add('active');
+
+    const c = CATEGORY_COLORS[data.category] || CATEGORY_COLORS.other;
+    const cat = document.getElementById('panel-category');
+    cat.textContent = (data.category || 'uncategorized').charAt(0).toUpperCase() + (data.category || 'uncategorized').slice(1);
+    cat.style.background = c.bg;
+    cat.style.color = c.text;
+
+    document.getElementById('panel-title').textContent = data.title;
+    document.getElementById('panel-meta').textContent = data.article_count + ' articles';
+    document.getElementById('panel-link').href = '/events/' + data.id;
+
+    // Fetch full event for summary
+    fetch('/api/events/' + data.id).then(r => r.json()).then(detail => {
+        document.getElementById('panel-summary').textContent = detail.summary || 'Summary pending...';
+        const entDiv = document.getElementById('panel-entities');
+        entDiv.innerHTML = '';
+        (detail.entities || []).slice(0, 8).forEach(e => {
+            const tag = document.createElement('span');
+            tag.className = 'inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600';
+            tag.textContent = e.name;
+            entDiv.appendChild(tag);
+        });
+    });
+}
+
+loadGraph();
+</script>
+{% endblock %}
