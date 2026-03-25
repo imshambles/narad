@@ -1,86 +1,56 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="mb-4 sm:mb-5">
-    <p class="text-xs sm:text-sm text-gray-400">Related articles grouped into events. Tap any event to see the full analysis.</p>
+<div class="flex items-center justify-between mb-4">
+    <p class="font-mono text-[10px] sm:text-[11px] text-white/20 uppercase tracking-widest">All Events</p>
 </div>
 
-<!-- Category filter (horizontally scrollable on mobile) -->
 {% if categories %}
-<div class="mb-4 sm:mb-5 -mx-4 px-4 sm:mx-0 sm:px-0">
-    <div class="flex gap-1.5 overflow-x-auto scroll-hide pb-1">
-        <a href="/explore"
-           class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex-shrink-0
-           {% if not selected_category %}bg-gray-900 text-white{% else %}bg-white text-gray-600 border border-gray-200 active:bg-gray-100{% endif %}">
-            All events
-        </a>
+<div class="mb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+    <div class="flex gap-1 overflow-x-auto scroll-hide pb-1">
+        <a href="/explore" class="px-2.5 py-1 rounded font-mono text-[10px] sm:text-[11px] tracking-wide flex-shrink-0 transition-colors
+           {% if not selected_category %}bg-white/10 text-white/70{% else %}text-white/30 hover:text-white/50 active:bg-white/5{% endif %}">ALL</a>
         {% for cat in categories %}
-        <a href="/explore?category={{ cat }}"
-           class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex-shrink-0
-           {% if selected_category == cat %}bg-gray-900 text-white{% else %}bg-white text-gray-600 border border-gray-200 active:bg-gray-100{% endif %}">
-            {{ cat | capitalize }}
-        </a>
+        <a href="/explore?category={{ cat }}" class="px-2.5 py-1 rounded font-mono text-[10px] sm:text-[11px] tracking-wide flex-shrink-0 transition-colors uppercase
+           {% if selected_category == cat %}bg-white/10 text-white/70{% else %}text-white/30 hover:text-white/50 active:bg-white/5{% endif %}">{{ cat }}</a>
         {% endfor %}
     </div>
 </div>
 {% endif %}
 
 {% if events %}
-<div class="space-y-2 sm:space-y-3">
+<div class="space-y-2">
     {% for event in events %}
-    <a href="/events/{{ event.id }}"
-       class="block bg-white rounded-lg border border-gray-100 p-4 sm:p-5 hover:shadow-sm active:bg-gray-50 transition-all">
-
-        <!-- Top row -->
-        <div class="flex items-center justify-between mb-1.5 sm:mb-2">
-            <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                {% if event.category %}
-                <span class="inline-block px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-medium
-                    {% if event.category == 'conflict' %}bg-red-50 text-red-700
-                    {% elif event.category == 'diplomacy' %}bg-blue-50 text-blue-700
-                    {% elif event.category == 'economy' %}bg-emerald-50 text-emerald-700
-                    {% elif event.category == 'defense' %}bg-orange-50 text-orange-700
-                    {% elif event.category == 'humanitarian' %}bg-purple-50 text-purple-700
-                    {% elif event.category == 'politics' %}bg-amber-50 text-amber-700
-                    {% else %}bg-gray-50 text-gray-600{% endif %}">
-                    {{ event.category | capitalize }}
-                </span>
-                {% endif %}
-                <span class="text-[10px] sm:text-[11px] text-gray-400">{{ (event.first_seen_at|ist).strftime('%b %d, %I:%M %p') }}</span>
-            </div>
-            <span class="text-[10px] sm:text-[11px] text-gray-400 flex-shrink-0 ml-2">{{ event.article_count }}a &middot; {{ event.source_count }}s</span>
-        </div>
-
-        <!-- Title -->
-        <h2 class="font-semibold text-[14px] sm:text-[15px] leading-snug text-gray-900">{{ event.title }}</h2>
-
-        {% if event.summary %}
-        <p class="text-[13px] sm:text-sm text-gray-500 mt-1 sm:mt-1.5 line-clamp-2 leading-relaxed">{{ event.summary }}</p>
-        {% endif %}
-
-        {% if event.entities %}
-        <div class="flex gap-1 sm:gap-1.5 mt-2 sm:mt-3 flex-wrap">
-            {% for entity in event.entities[:4] %}
-            <span class="inline-block px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px]
-                {% if entity.type == 'country' %}bg-blue-50 text-blue-600
-                {% elif entity.type == 'person' %}bg-purple-50 text-purple-600
-                {% elif entity.type == 'organization' %}bg-green-50 text-green-600
-                {% else %}bg-gray-50 text-gray-500{% endif %}">
-                {{ entity.name }}
-            </span>
-            {% endfor %}
-            {% if event.entities | length > 4 %}
-            <span class="text-[10px] text-gray-400 self-center">+{{ event.entities | length - 4 }}</span>
+    <a href="/events/{{ event.id }}" class="block bg-surface-2 border border-white/5 rounded-lg p-3.5 sm:p-4 hover:border-white/10 active:bg-surface-3 transition-all">
+        <div class="flex items-center gap-2 mb-1.5">
+            {% if event.category %}
+            <span class="font-mono text-[9px] sm:text-[10px] uppercase tracking-widest
+                {% if event.category == 'conflict' %}text-red-400
+                {% elif event.category == 'diplomacy' %}text-blue-400
+                {% elif event.category == 'economy' %}text-green-400
+                {% elif event.category == 'defense' %}text-orange-400
+                {% else %}text-white/30{% endif %}">{{ event.category }}</span>
             {% endif %}
+            <span class="font-mono text-[9px] sm:text-[10px] text-white/15 ml-auto">{{ event.article_count }}a &middot; {{ event.source_count }}s</span>
+        </div>
+        <h2 class="text-[13px] sm:text-[14px] font-medium text-white/70 leading-snug">{{ event.title }}</h2>
+        {% if event.summary %}
+        <p class="text-[12px] text-white/30 mt-1 line-clamp-2 leading-relaxed">{{ event.summary }}</p>
+        {% endif %}
+        {% if event.entities %}
+        <div class="flex gap-1 mt-2 flex-wrap">
+            {% for entity in event.entities[:4] %}
+            <span class="font-mono text-[9px] sm:text-[10px] px-1.5 py-0.5 bg-white/5 text-white/25 rounded">{{ entity.name }}</span>
+            {% endfor %}
         </div>
         {% endif %}
     </a>
     {% endfor %}
 </div>
 {% else %}
-<div class="text-center py-16 sm:py-24">
-    <p class="text-gray-900 font-medium">No events yet</p>
-    <p class="text-gray-400 text-sm mt-1">Check back in a few minutes.</p>
+<div class="text-center py-16">
+    <p class="font-mono text-[11px] text-white/25">NO EVENTS YET</p>
+    <p class="text-[12px] text-white/15 mt-1">Check back in a few minutes.</p>
 </div>
 {% endif %}
 
