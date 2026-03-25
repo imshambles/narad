@@ -128,4 +128,5 @@ class Briefing(Base):
     generated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     stories_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     connections_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    outlook_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # predictive scenarios
     is_current: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -12,9 +12,14 @@ from narad.models import Briefing, Event
 
 logger = logging.getLogger(__name__)
 
-BRIEFING_PROMPT = """You are Narad, an AI geopolitical intelligence analyst preparing a daily briefing for an Indian professional. Your job is to select the most significant stories and explain their India impact.
+BRIEFING_PROMPT = """You are Narad, a senior geopolitical intelligence analyst preparing a daily briefing for an Indian strategist. You don't just report news — you analyze what it means, what could happen next, and what signals to watch for.
 
-Here are today's {n} geopolitical events. Each has an ID, title, summary, article count, source count, and category:
+Think like a combination of:
+- A RAW/CIA analyst writing a President's Daily Brief
+- Professor Jiang's predictive history methodology (pattern-matching current events to historical precedents)
+- A Palantir-style scenario planner
+
+Here are today's {n} geopolitical events:
 
 {events_list}
 
@@ -25,40 +30,54 @@ Produce a briefing in this exact JSON format (no markdown, no code fences, just 
       "event_id": <id from the list above>,
       "headline": "Crisp headline, max 12 words",
       "summary": "2-3 neutral sentences synthesizing the event",
-      "india_impact": "1-2 sentences on why this matters for India specifically — trade, security, diplomacy, economy, diaspora, or strategic interests. If no direct India impact, say 'No direct India impact, but worth monitoring.'",
+      "india_impact": "1-2 specific sentences on why this matters for India — reference actual trade volumes, treaties, borders, supply routes, diplomatic history, or economic ties",
       "severity": "critical or developing or monitoring",
       "source_count": <n>,
-      "category": "<category>"
+      "category": "<category>",
+      "scenarios": {{
+        "likely": "What will most probably happen next (60-70% chance). Be specific with timeframes — days, weeks, or months.",
+        "best_case": "The optimistic but realistic outcome for India",
+        "worst_case": "The pessimistic but plausible outcome for India",
+        "historical_parallel": "Name ONE specific historical event that mirrors this situation and what happened then (e.g., 'Similar to the 1973 Oil Crisis when Arab states embargoed oil exports, leading to...')"
+      }},
+      "watch_signals": ["Specific observable indicator to watch for, e.g., 'Oil futures crossing $120/barrel'", "Second signal", "Third signal"]
     }}
   ],
   "connections": [
     {{
       "from_event_id": <id>,
       "to_event_id": <id>,
-      "narrative": "One sentence explaining how these two stories are linked"
+      "narrative": "One sentence explaining how these stories are causally linked"
     }}
-  ]
+  ],
+  "outlook": {{
+    "next_24h": "What to expect in the next 24 hours across all stories. Be specific.",
+    "next_week": "How the situation is likely to evolve over the coming week. Identify the key decision points.",
+    "india_strategic_assessment": "2-3 sentences: What should an Indian strategist, investor, or policymaker be thinking about right now based on all of today's events combined?",
+    "wildcard": "One low-probability but high-impact scenario that could change everything (a black swan to keep in mind)"
+  }}
 }}
 
 Rules:
 - Select exactly 5-7 stories maximum. Quality over quantity. Pick the ones that MATTER.
-- Rank by: (1) global significance, (2) relevance to India, (3) number of sources covering it
-- "critical" = active conflict, major diplomatic shift, direct India impact
-- "developing" = evolving situation, indirect India impact
-- "monitoring" = worth watching, no immediate India impact
-- Connections: only include genuine links — shared countries/people, causal chains, same conflict. Do NOT force connections where none exist. It's fine to have 0 connections.
-- Be factual, neutral, no speculation beyond what sources report.
-- The india_impact must be specific, not generic. Reference actual trade routes, treaties, diplomatic relationships, or economic ties."""
+- Rank by: (1) global significance, (2) relevance to India, (3) source count
+- Severity: "critical" = active conflict, major diplomatic shift, direct India impact. "developing" = evolving, indirect impact. "monitoring" = worth watching.
+- Scenarios: be SPECIFIC with timeframes, not vague. "Within 48 hours" not "soon". Name actual countries, leaders, institutions.
+- Historical parallels: pick the BEST match from history, not a generic comparison. Explain what happened then in 1 sentence.
+- Watch signals: these must be OBSERVABLE — things someone can actually check. Not opinions, but facts that would confirm a scenario is playing out.
+- Connections: only genuine causal or entity links. Don't force them.
+- India impact: reference SPECIFIC numbers, routes, treaties, or relationships. Not "India may be affected" but "India imports 85% of its crude oil, 40% through the Strait of Hormuz."
+- Outlook: the strategic assessment should read like advice to a cabinet secretary, not a news anchor.
+- Be factual and analytical, not sensational. Acknowledge uncertainty where it exists."""
 
 
 async def generate_briefing() -> None:
-    """Generate a daily briefing from summarized events."""
+    """Generate a daily briefing with predictive intelligence from summarized events."""
     if not settings.gemini_api_key:
         logger.debug("Gemini API key not configured, skipping briefing")
         return
 
     async with async_session() as session:
-        # Get all active events with summaries (prioritize multi-source events)
         stmt = (
             select(Event)
             .where(Event.is_active == True)
@@ -93,8 +112,14 @@ async def generate_briefing() -> None:
         # Build event list for prompt
         events_text = ""
         for e in events:
-            summary = (e.summary or e.title)[:200]
-            events_text += f"ID: {e.id} | Title: {e.title} | Summary: {summary} | Articles: {e.article_count} | Sources: {e.source_count} | Category: {e.category or 'unknown'}\n\n"
+            summary = (e.summary or e.title)[:300]
+            entities = e.entities_json or "[]"
+            events_text += (
+                f"ID: {e.id} | Title: {e.title}\n"
+                f"Summary: {summary}\n"
+                f"Articles: {e.article_count} | Sources: {e.source_count} | Category: {e.category or 'unknown'}\n"
+                f"Entities: {entities}\n\n"
+            )
 
         prompt = BRIEFING_PROMPT.format(n=len(events), events_list=events_text)
 
@@ -108,7 +133,6 @@ async def generate_briefing() -> None:
                 contents=prompt,
             )
             text = response.text.strip()
-            # Strip markdown code fences
             if text.startswith("```"):
                 text = text.split("\n", 1)[1] if "\n" in text else text[3:]
                 if text.endswith("```"):
@@ -122,24 +146,25 @@ async def generate_briefing() -> None:
 
         stories = data.get("stories", [])
         connections = data.get("connections", [])
+        outlook = data.get("outlook", {})
 
         if not stories:
             logger.warning("Briefing: Gemini returned no stories")
             return
 
-        # Mark all existing briefings as not current
+        # Mark old briefings as not current
         await session.execute(
             update(Briefing).where(Briefing.is_current == True).values(is_current=False)
         )
 
-        # Create new briefing
         briefing = Briefing(
             generated_at=datetime.now(timezone.utc),
             stories_json=json.dumps(stories),
             connections_json=json.dumps(connections),
+            outlook_json=json.dumps(outlook),
             is_current=True,
         )
         session.add(briefing)
         await session.commit()
 
-        logger.info(f"Briefing generated: {len(stories)} stories, {len(connections)} connections")
+        logger.info(f"Briefing generated: {len(stories)} stories, {len(connections)} connections, outlook included")

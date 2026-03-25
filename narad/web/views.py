@@ -34,13 +34,15 @@ templates.env.filters["ist"] = _to_ist
 INDIA_SOURCES = {"Reuters India", "AP India", "India Diplomacy", "India Defence", "India Geopolitics", "ANI Wire"}
 
 
-def _parse_json(raw: str | None) -> list:
+def _parse_json(raw: str | None, default=None):
+    if default is None:
+        default = []
     if not raw:
-        return []
+        return default
     try:
         return json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        return []
+        return default
 
 
 # ──────────────────────────────────────────────
@@ -58,6 +60,7 @@ async def briefing_page(
 
     stories = _parse_json(briefing.stories_json) if briefing else []
     connections = _parse_json(briefing.connections_json) if briefing else []
+    outlook = _parse_json(briefing.outlook_json, default={}) if briefing else {}
 
     # Stats for empty state
     total_articles = (await session.execute(select(func.count()).select_from(Article))).scalar() or 0
@@ -74,6 +77,7 @@ async def briefing_page(
             "briefing": briefing,
             "stories": stories,
             "connections": connections,
+            "outlook": outlook,
             "total_articles": total_articles,
             "total_events": total_events,
             "events_summarized": events_summarized,
