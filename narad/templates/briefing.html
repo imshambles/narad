@@ -1,6 +1,90 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- ============================================================ -->
+<!-- ASK NARAD — Query Interface                                   -->
+<!-- ============================================================ -->
+<div class="mb-5 sm:mb-6">
+    <div id="query-box" class="bg-surface-2 border border-white/10 rounded-lg overflow-hidden focus-within:border-white/20 transition-colors">
+        <div class="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3">
+            <span class="font-mono text-[11px] text-white/25 flex-shrink-0">ASK</span>
+            <input id="query-input" type="text" placeholder="What happened the last time oil crossed $120? How is India exposed to the Iran situation?"
+                   class="flex-1 bg-transparent text-sm text-white/80 placeholder-white/15 outline-none font-sans"
+                   onkeydown="if(event.key==='Enter')askNarad()">
+            <button onclick="askNarad()" class="font-mono text-[10px] text-white/30 hover:text-white/60 transition-colors px-2 py-1 rounded hover:bg-white/5">&#x23CE;</button>
+        </div>
+    </div>
+    <div id="query-result" class="hidden mt-3 bg-surface-2 border border-white/5 rounded-lg p-4 sm:p-5">
+        <div id="query-loading" class="hidden text-center py-4">
+            <span class="inline-block w-2 h-2 rounded-full bg-white/30 pulse-dot"></span>
+            <span class="font-mono text-[11px] text-white/25 ml-2">ANALYZING...</span>
+        </div>
+        <div id="query-answer"></div>
+    </div>
+</div>
+
+<script>
+async function askNarad() {
+    const input = document.getElementById('query-input');
+    const q = input.value.trim();
+    if (!q) return;
+
+    // Stop any auto-refresh
+    if (typeof refreshTimer !== 'undefined') clearTimeout(refreshTimer);
+
+    const result = document.getElementById('query-result');
+    const loading = document.getElementById('query-loading');
+    const answer = document.getElementById('query-answer');
+
+    result.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    answer.innerHTML = '';
+
+    try {
+        const resp = await fetch('/api/intel/query', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({question: q}),
+        });
+        const data = await resp.json();
+        loading.classList.add('hidden');
+
+        let html = `<p class="text-[13px] sm:text-sm text-white/70 leading-relaxed mb-3">${data.answer || 'No answer available.'}</p>`;
+
+        if (data.evidence && data.evidence.length) {
+            html += `<p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">Evidence</p>`;
+            html += `<div class="space-y-1.5 mb-3">`;
+            for (const e of data.evidence) {
+                html += `<div class="flex items-start gap-2 text-[11px] sm:text-[12px]">
+                    <span class="font-mono text-[9px] text-blue-400/50 mt-0.5 flex-shrink-0">${e.type || '?'}</span>
+                    <span class="text-white/40">${e.reference || ''}</span>
+                </div>`;
+            }
+            html += `</div>`;
+        }
+
+        if (data.confidence) {
+            html += `<span class="font-mono text-[9px] text-white/15">Confidence: ${data.confidence}</span>`;
+        }
+
+        if (data.follow_up_questions && data.follow_up_questions.length) {
+            html += `<div class="mt-3 pt-3 border-t border-white/5">`;
+            html += `<p class="font-mono text-[9px] text-white/15 mb-1.5">Follow-up questions:</p>`;
+            for (const fq of data.follow_up_questions) {
+                html += `<button onclick="document.getElementById('query-input').value='${fq.replace(/'/g, "\\'")}';askNarad()"
+                    class="block text-left text-[11px] sm:text-[12px] text-blue-400/40 hover:text-blue-400/70 transition-colors py-0.5">${fq}</button>`;
+            }
+            html += `</div>`;
+        }
+
+        answer.innerHTML = html;
+    } catch(e) {
+        loading.classList.add('hidden');
+        answer.innerHTML = `<p class="text-[12px] text-red-400/60">Query failed: ${e.message}</p>`;
+    }
+}
+</script>
+
 {% if briefing and stories %}
 
 <!-- ============================================================ -->
@@ -21,6 +105,34 @@
         {% endif %}
     </div>
 </div>
+
+<!-- ============================================================ -->
+<!-- MARKET TICKER                                                 -->
+<!-- ============================================================ -->
+<div id="market-ticker" class="mb-4 sm:mb-5 -mx-4 px-4 sm:mx-0 sm:px-0">
+    <div class="flex gap-3 overflow-x-auto scroll-hide pb-1" id="ticker-row">
+        <span class="font-mono text-[9px] text-white/15 self-center flex-shrink-0">LOADING MARKETS...</span>
+    </div>
+</div>
+<script>
+fetch('/api/intel/market').then(r=>r.json()).then(data=>{
+    const row = document.getElementById('ticker-row');
+    if (!Object.keys(data).length) { row.innerHTML='<span class="font-mono text-[9px] text-white/15">Market data loading...</span>'; return; }
+    row.innerHTML = '';
+    const order = ['BZ=F','CL=F','GC=F','NG=F','INR=X','^NSEI'];
+    const short = {'BZ=F':'BRENT','CL=F':'WTI','GC=F':'GOLD','NG=F':'NATGAS','INR=X':'USD/INR','^NSEI':'NIFTY'};
+    for (const sym of order) {
+        const d = data[sym]; if(!d) continue;
+        const color = d.change_1d >= 0 ? 'text-green-400' : 'text-red-400';
+        const arrow = d.change_1d >= 0 ? '&#x25B2;' : '&#x25BC;';
+        row.innerHTML += `<div class="flex-shrink-0 bg-surface-2 border border-white/5 rounded px-2.5 py-1.5">
+            <span class="font-mono text-[9px] text-white/25 block">${short[sym]||sym}</span>
+            <span class="font-mono text-[12px] text-white/60">${d.price.toLocaleString(undefined,{maximumFractionDigits:2})}</span>
+            <span class="font-mono text-[10px] ${color} ml-1">${arrow} ${Math.abs(d.change_1d).toFixed(1)}%</span>
+        </div>`;
+    }
+});
+</script>
 
 <!-- ============================================================ -->
 <!-- STRATEGIC OUTLOOK                                             -->
@@ -213,7 +325,19 @@
     </div>
     {% endif %}
 
-    <script>setTimeout(() => location.reload(), 15000);</script>
+    <script>
+    // Only auto-refresh if user isn't interacting with the query box
+    let refreshTimer = setTimeout(() => location.reload(), 15000);
+    const qi = document.getElementById('query-input');
+    if (qi) {
+        qi.addEventListener('focus', () => clearTimeout(refreshTimer));
+        qi.addEventListener('input', () => clearTimeout(refreshTimer));
+    }
+    // Also cancel if query result is showing
+    if (document.getElementById('query-result') && !document.getElementById('query-result').classList.contains('hidden')) {
+        clearTimeout(refreshTimer);
+    }
+    </script>
 </div>
 {% endif %}
 {% endblock %}

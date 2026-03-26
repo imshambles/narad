@@ -160,6 +160,8 @@ async def start_scheduler():
     from narad.intel.threat_matrix import update_threat_matrix
     from narad.intel.signals import detect_signals
     from narad.intel.analyst import run_intelligence_analysis
+    from narad.intel.market_data import fetch_market_data
+    from narad.intel.geospatial import fetch_geoint
 
     scheduler.add_job(
         generate_briefing, "interval", minutes=30,
@@ -182,6 +184,20 @@ async def start_scheduler():
         detect_signals, "interval", minutes=15,
         id="signals", replace_existing=True,
         next_run_time=now + timedelta(minutes=7),
+    )
+
+    # Market data — commodity prices, forex, indices
+    scheduler.add_job(
+        fetch_market_data, "interval", minutes=15,
+        id="market_data", replace_existing=True,
+        next_run_time=now + timedelta(seconds=30),
+    )
+
+    # GEOINT — satellite/aircraft/ship monitoring
+    scheduler.add_job(
+        fetch_geoint, "interval", minutes=10,
+        id="geoint", replace_existing=True,
+        next_run_time=now + timedelta(seconds=45),
     )
 
     # Intelligence analyst — runs after entity graph and threat matrix are populated

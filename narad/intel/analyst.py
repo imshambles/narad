@@ -18,7 +18,7 @@ from narad.config import settings
 from narad.database import async_session
 from narad.models import (
     Entity, EntityMention, EntityRelation, Event, EventArticle,
-    Signal, ThreatMatrix, Article,
+    MarketDataPoint, Signal, ThreatMatrix, Article,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,11 +32,19 @@ You are NOT summarizing news. You are looking for:
 4. Anomalies — things that deviate from expected behavior
 5. Strategic implications for India that aren't immediately apparent
 6. Historical pattern matches that predict what comes next
+7. CORRELATIONS between market movements and geopolitical events (e.g., oil price spike + Iran conflict = India fiscal pressure)
+8. GEOINT signals — thermal anomalies near borders or conflict zones, unusual military aircraft activity, naval movements
+
+=== GEOINT (Satellite + Aircraft Tracking) ===
+{geoint_data}
 
 Here is the current intelligence picture:
 
 === RECENT EVENTS (last 48 hours) ===
 {events_data}
+
+=== MARKET DATA (hard numbers) ===
+{market_data}
 
 === ENTITY ACTIVITY ===
 {entity_data}
@@ -160,8 +168,42 @@ async def run_intelligence_analysis() -> None:
         if not relationship_data:
             relationship_data = "No bilateral relationship data available yet.\n"
 
+        # Gather market data
+        market_data = ""
+        for symbol in ["BZ=F", "CL=F", "GC=F", "NG=F", "INR=X", "^NSEI", "^BSESN", "ZW=F"]:
+            point = await session.execute(
+                select(MarketDataPoint)
+                .where(MarketDataPoint.symbol == symbol)
+                .order_by(MarketDataPoint.fetched_at.desc())
+                .limit(1)
+            )
+            p = point.scalar_one_or_none()
+            if p:
+                market_data += f"{p.name}: ${p.price:.2f} (1d: {p.change_1d:+.1f}%, 7d: {p.change_7d:+.1f}%, 30d: {p.change_30d:+.1f}%)\n"
+
+        if not market_data:
+            market_data = "No market data available yet.\n"
+
+        # Gather GEOINT signals
+        geoint_data = ""
+        geoint_signals = await session.execute(
+            select(Signal)
+            .where(Signal.signal_type.in_(["thermal_anomaly", "aircraft_activity", "naval_activity"]))
+            .where(Signal.is_active == True)
+            .order_by(Signal.detected_at.desc())
+            .limit(10)
+        )
+        for gs in geoint_signals.scalars().all():
+            gd = json.loads(gs.data_json or "{}")
+            geoint_data += f"[{gs.severity}] {gs.title}: {gs.description[:150]}\n"
+
+        if not geoint_data:
+            geoint_data = "No active GEOINT signals.\n"
+
         prompt = ANALYST_PROMPT.format(
             events_data=events_data,
+            market_data=market_data,
+            geoint_data=geoint_data,
             entity_data=entity_data or "No entity data available yet.\n",
             relationship_data=relationship_data,
         )

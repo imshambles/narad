@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from narad.config import settings
 from narad.database import async_session
-from narad.models import Briefing, Event
+from narad.models import Briefing, Event, MarketDataPoint
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,20 @@ async def generate_briefing() -> None:
                 f"Entities: {entities}\n\n"
             )
 
-        prompt = BRIEFING_PROMPT.format(n=len(events), events_list=events_text)
+        # Gather market data for context
+        market_text = "\n=== CURRENT MARKET DATA ===\n"
+        for symbol in ["BZ=F", "CL=F", "GC=F", "NG=F", "INR=X", "^NSEI"]:
+            point_result = await session.execute(
+                select(MarketDataPoint)
+                .where(MarketDataPoint.symbol == symbol)
+                .order_by(MarketDataPoint.fetched_at.desc())
+                .limit(1)
+            )
+            p = point_result.scalar_one_or_none()
+            if p:
+                market_text += f"{p.name}: ${p.price:.2f} (1d: {p.change_1d:+.1f}%, 7d: {p.change_7d:+.1f}%, 30d: {p.change_30d:+.1f}%)\n"
+
+        prompt = BRIEFING_PROMPT.format(n=len(events), events_list=events_text + market_text)
 
         # Call Gemini
         try:

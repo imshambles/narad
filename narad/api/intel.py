@@ -5,9 +5,33 @@ from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from narad.database import get_session
-from narad.models import Entity, EntityRelation, Signal, ThreatMatrix
+from pydantic import BaseModel
+
+from narad.models import Entity, EntityRelation, MarketDataPoint, Signal, ThreatMatrix
 
 router = APIRouter(tags=["intel"])
+
+
+class QueryRequest(BaseModel):
+    question: str
+
+
+@router.post("/intel/query")
+async def query_narad(req: QueryRequest):
+    from narad.intel.query import ask_narad
+    return await ask_narad(req.question)
+
+
+@router.get("/intel/market")
+async def get_market_data(session: AsyncSession = Depends(get_session)):
+    from narad.intel.market_data import get_latest_prices
+    return await get_latest_prices()
+
+
+@router.get("/intel/geoint")
+async def get_geoint():
+    from narad.intel.geospatial import get_geoint_summary
+    return await get_geoint_summary()
 
 
 @router.get("/intel/entities")

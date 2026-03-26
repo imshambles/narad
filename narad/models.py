@@ -210,6 +210,27 @@ class ThreatMatrix(Base):
     )
 
 
+class MarketDataPoint(Base):
+    """Commodity prices, forex rates, market indices — hard quantitative data."""
+    __tablename__ = "market_data"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)  # e.g. CL=F, INR=X
+    name: Mapped[str] = mapped_column(String, nullable=False)  # e.g. Brent Crude Oil
+    category: Mapped[str] = mapped_column(String, nullable=False)  # commodity, forex, index
+    unit: Mapped[str] = mapped_column(String, nullable=False)  # USD/barrel, INR per USD
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    change_1d: Mapped[float] = mapped_column(Float, default=0.0)  # % change
+    change_7d: Mapped[float] = mapped_column(Float, default=0.0)
+    change_30d: Mapped[float] = mapped_column(Float, default=0.0)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    __table_args__ = (
+        Index("idx_md_symbol", "symbol"),
+        Index("idx_md_time", "fetched_at"),
+    )
+
+
 class Signal(Base):
     """Detected anomaly or pattern — an intelligence signal."""
     __tablename__ = "signals"

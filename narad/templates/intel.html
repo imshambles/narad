@@ -156,6 +156,63 @@
 {% endif %}
 
 <!-- ============================================================ -->
+<!-- GEOINT — Satellite + Aircraft + Thermal                       -->
+<!-- ============================================================ -->
+<div class="bg-surface-2 border border-white/5 rounded-lg p-4 sm:p-5 mb-4 sm:mb-5">
+    <p class="font-mono text-[9px] sm:text-[10px] text-white/20 uppercase tracking-widest mb-1">Geospatial Intelligence</p>
+    <p class="font-mono text-[9px] text-white/10 mb-3">NASA FIRMS thermal · OpenSky ADS-B aircraft · 8 monitored zones</p>
+
+    <div id="geoint-data" class="space-y-2">
+        <span class="font-mono text-[10px] text-white/15 pulse-dot">Loading GEOINT data...</span>
+    </div>
+</div>
+
+<script>
+fetch('/api/intel/geoint').then(r=>r.json()).then(data=>{
+    const el = document.getElementById('geoint-data');
+    let html = '';
+
+    const allSignals = [...(data.thermal||[]), ...(data.aircraft||[])];
+    allSignals.sort((a,b) => {
+        const sev = {critical:0,high:1,medium:2,low:3};
+        return (sev[a.severity]||3) - (sev[b.severity]||3);
+    });
+
+    if (allSignals.length === 0) {
+        // Show zone status even if no signals
+        html = '<div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5">';
+        const zones = data.zone_names || {};
+        for (const [k,v] of Object.entries(zones)) {
+            html += `<div class="bg-surface-3 rounded px-2.5 py-1.5">
+                <span class="font-mono text-[9px] text-white/20 block">${v}</span>
+                <span class="font-mono text-[10px] text-green-400/50">CLEAR</span>
+            </div>`;
+        }
+        html += '</div>';
+    } else {
+        for (const s of allSignals) {
+            const d = s.data || {};
+            const sevColor = {critical:'text-red-400 bg-red-500/10 border-red-500/20',high:'text-amber-400 bg-amber-500/10 border-amber-500/10',medium:'text-blue-400 bg-blue-500/10 border-blue-500/10',low:'text-white/30 bg-white/5 border-white/5'}[s.severity] || 'text-white/30 bg-white/5 border-white/5';
+            const typeIcon = d.type === 'firms' ? '🔥' : '✈';
+
+            html += `<div class="bg-surface-3 border ${sevColor.split(' ').slice(2).join(' ')} rounded-md p-3 flex items-start gap-2.5">
+                <span class="text-sm mt-0.5">${typeIcon}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <span class="font-mono text-[9px] uppercase tracking-widest ${sevColor.split(' ').slice(0,1).join(' ')}">${s.severity}</span>
+                        <span class="font-mono text-[9px] text-white/15">${d.zone_name || ''}</span>
+                    </div>
+                    <p class="text-[12px] sm:text-[13px] text-white/60">${s.title}</p>
+                </div>
+            </div>`;
+        }
+    }
+
+    el.innerHTML = html;
+});
+</script>
+
+<!-- ============================================================ -->
 <!-- ENTITY TRACKER                                                -->
 <!-- ============================================================ -->
 {% if top_entities %}
