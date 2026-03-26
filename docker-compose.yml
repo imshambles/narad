@@ -1,0 +1,17 @@
+services:
+  narad:
+    build: .
+    container_name: narad
+    ports:
+      - "8000:8000"
+    volumes:
+      - narad_data:/data
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////data/narad.db
+    restart: unless-stopped
+
+volumes:
+  narad_data:
+    driver: local

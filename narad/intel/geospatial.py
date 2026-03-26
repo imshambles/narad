@@ -27,8 +27,9 @@ from narad.models import Signal
 
 logger = logging.getLogger(__name__)
 
-# NASA FIRMS API key (free tier — register at firms.modaps.eosdis.nasa.gov for your own)
-FIRMS_KEY = "d0a3085db128bcc65e63ac699f498463"
+# NASA FIRMS API key — loaded from env, fallback to registered key
+import os
+FIRMS_KEY = os.environ.get("FIRMS_API_KEY", "572bdd5a0d011133b86cabb69a3520b5")
 
 # Monitored zones — bounding boxes [lat_min, lon_min, lat_max, lon_max]
 ZONES = {
