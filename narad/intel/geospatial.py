@@ -102,23 +102,69 @@ async def _fetch_firms(session, now: datetime) -> int:
                     continue
 
                 lines = resp.text.strip().split("\n")
-                fire_count = len(lines) - 1  # subtract header
+                fire_count = len(lines) - 1
 
                 if fire_count <= 0:
                     continue
 
-                # Parse for high-confidence fires
+                # Parse FIRMS CSV for detailed analysis
+                # Columns: latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
                 high_confidence = 0
+                total_frp = 0  # Fire Radiative Power — higher = more intense
+                max_frp = 0
+                bright_spots = []  # high-intensity detections
+                night_count = 0
+
+                header = lines[0].split(",") if lines else []
+                frp_idx = header.index("frp") if "frp" in header else -1
+                conf_idx = header.index("confidence") if "confidence" in header else -1
+                dn_idx = header.index("daynight") if "daynight" in header else -1
+                lat_idx = header.index("latitude") if "latitude" in header else 0
+                lon_idx = header.index("longitude") if "longitude" in header else 1
+                bright_idx = header.index("bright_ti4") if "bright_ti4" in header else -1
+
                 for line in lines[1:]:
                     parts = line.split(",")
-                    if len(parts) > 9:
-                        confidence = parts[9] if len(parts) > 9 else ""
-                        if confidence in ("high", "h", "nominal", "n"):
+                    try:
+                        if conf_idx >= 0 and parts[conf_idx].strip().lower() in ("high", "h", "nominal", "n"):
                             high_confidence += 1
+                        if frp_idx >= 0 and parts[frp_idx].strip():
+                            frp = float(parts[frp_idx])
+                            total_frp += frp
+                            max_frp = max(max_frp, frp)
+                            if frp > 50:  # High intensity
+                                bright_spots.append({"lat": parts[lat_idx], "lon": parts[lon_idx], "frp": frp})
+                        if dn_idx >= 0 and parts[dn_idx].strip().upper() == "N":
+                            night_count += 1
+                    except (ValueError, IndexError):
+                        continue
 
-                # Only signal if significant activity
-                if fire_count >= 5 or (zone["threat"] == "border" and fire_count >= 2):
-                    # Check for existing signal
+                # Build meaningful description
+                threat_type = zone["threat"]
+                avg_frp = total_frp / fire_count if fire_count > 0 else 0
+
+                # Interpret the data based on zone type
+                if threat_type == "border":
+                    if max_frp > 100 or night_count > fire_count * 0.5:
+                        interpretation = "High-intensity nighttime detections near border — could indicate military exercises, artillery fire, or controlled burns. Requires monitoring."
+                    elif fire_count < 10:
+                        interpretation = "Low-level thermal activity — likely agricultural burning or small fires. No immediate concern."
+                    else:
+                        interpretation = "Elevated thermal activity near border region. Pattern could indicate troop movements with vehicle heat signatures or camp activity."
+                elif threat_type == "conflict":
+                    if max_frp > 200:
+                        interpretation = "Very high intensity heat signatures detected — consistent with explosive ordnance, airstrikes, or large-scale fires in active conflict zone."
+                    elif fire_count > 20:
+                        interpretation = "Widespread thermal activity across conflict zone — could indicate ongoing military operations, infrastructure fires, or oil facility damage."
+                    else:
+                        interpretation = "Moderate thermal activity in conflict zone — possibly localized fighting, industrial fires, or oil burns."
+                elif threat_type == "maritime":
+                    interpretation = f"Thermal detections over maritime zone — could indicate vessel activity, offshore platform flaring, or naval exercises."
+                else:
+                    interpretation = "Thermal activity detected — requires correlation with news events to determine significance."
+
+                # Only signal if significant
+                if fire_count >= 5 or (threat_type == "border" and fire_count >= 2):
                     existing = await session.execute(
                         select(Signal)
                         .where(Signal.signal_type == "thermal_anomaly")
@@ -131,23 +177,38 @@ async def _fetch_firms(session, now: datetime) -> int:
                         continue
 
                     severity = "low"
-                    if zone["threat"] == "border" and fire_count >= 5:
+                    if threat_type == "border" and (fire_count >= 5 or max_frp > 100):
                         severity = "high"
-                    elif fire_count >= 20:
+                    elif fire_count >= 50 or max_frp > 200:
                         severity = "high"
-                    elif fire_count >= 10:
+                    elif fire_count >= 15 or max_frp > 50:
                         severity = "medium"
+
+                    title = f"{fire_count} heat signatures in {zone['name']}"
+                    if high_confidence > 0:
+                        title += f" ({high_confidence} high-confidence)"
+
+                    description = (
+                        f"{interpretation} "
+                        f"Details: {fire_count} detections, avg intensity {avg_frp:.0f} FRP, "
+                        f"peak intensity {max_frp:.0f} FRP, "
+                        f"{night_count} nighttime. "
+                        f"{len(bright_spots)} high-intensity clusters detected."
+                    )
 
                     session.add(Signal(
                         signal_type="thermal_anomaly",
-                        title=f"{fire_count} thermal anomalies in {zone['name']}",
-                        description=f"NASA FIRMS detected {fire_count} thermal anomalies ({high_confidence} high-confidence) in {zone['name']} in the last 24 hours. This could indicate fires, explosions, or industrial activity.",
+                        title=title,
+                        description=description,
                         severity=severity,
                         entity_ids_json=json.dumps([]),
                         data_json=json.dumps({
                             "zone": zone_id, "zone_name": zone["name"],
                             "fire_count": fire_count, "high_confidence": high_confidence,
+                            "avg_frp": round(avg_frp, 1), "max_frp": round(max_frp, 1),
+                            "night_count": night_count, "bright_spots": len(bright_spots),
                             "bbox": bbox, "type": "firms",
+                            "interpretation": interpretation,
                         }),
                         detected_at=now,
                         is_active=True,

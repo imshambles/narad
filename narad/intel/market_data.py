@@ -55,19 +55,20 @@ async def fetch_market_data() -> None:
 
                     result = data["chart"]["result"][0]
                     current_price = result["meta"]["regularMarketPrice"]
-                    prev_close = result["meta"].get("chartPreviousClose", current_price)
 
-                    # Get historical closes for trend
+                    # Get historical closes
                     closes = result["indicators"]["quote"][0].get("close", [])
                     closes = [c for c in closes if c is not None]
 
-                    # Calculate changes
-                    change_1d = ((current_price - prev_close) / prev_close * 100) if prev_close else 0
+                    # Calculate changes from actual closes, not chartPreviousClose
+                    change_1d = 0
                     change_7d = 0
                     change_30d = 0
+                    if len(closes) >= 2:
+                        change_1d = ((current_price - closes[-2]) / closes[-2] * 100)
                     if len(closes) >= 7:
                         change_7d = ((current_price - closes[-7]) / closes[-7] * 100)
-                    if len(closes) >= 25:
+                    if len(closes) >= 20:
                         change_30d = ((current_price - closes[0]) / closes[0] * 100)
 
                     # Store

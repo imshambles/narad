@@ -70,6 +70,54 @@ async def briefing_page(
         select(func.count()).select_from(Event).where(Event.summary.isnot(None))
     )).scalar() or 0
 
+    # Intel data — fold into single page
+    import json as _json
+
+    # Assessments
+    assess_result = await session.execute(
+        select(Signal)
+        .where(Signal.signal_type == "assessment")
+        .where(Signal.is_active == True)
+        .order_by(Signal.severity.desc(), Signal.detected_at.desc())
+        .limit(5)
+    )
+    assessments = [
+        {"title": s.title, "severity": s.severity, "data": _json.loads(s.data_json or "{}")}
+        for s in assess_result.scalars().all()
+    ]
+
+    strategic_warning = None
+    relationship_insights = []
+    if assessments:
+        first_data = assessments[0].get("data", {})
+        strategic_warning = first_data.get("strategic_warning")
+        relationship_insights = first_data.get("relationship_insights", [])
+
+    # Threat matrix
+    from sqlalchemy import desc as sql_desc
+    tm_result = await session.execute(
+        select(ThreatMatrix).order_by((ThreatMatrix.tension_score + ThreatMatrix.cooperation_score).desc())
+    )
+    threat_matrix = []
+    for tm in tm_result.scalars().all():
+        country = await session.get(Entity, tm.country_entity_id)
+        if country:
+            threat_matrix.append({
+                "country": country.name,
+                "cooperation": tm.cooperation_score,
+                "tension": tm.tension_score,
+                "trend": tm.trend,
+            })
+
+    # Top entities
+    ent_result = await session.execute(
+        select(Entity).order_by(Entity.mention_count.desc()).limit(12)
+    )
+    top_entities = [
+        {"name": e.name, "type": e.entity_type, "mentions": e.mention_count}
+        for e in ent_result.scalars().all()
+    ]
+
     return templates.TemplateResponse(
         request,
         "briefing.html",
@@ -82,6 +130,11 @@ async def briefing_page(
             "total_articles": total_articles,
             "total_events": total_events,
             "events_summarized": events_summarized,
+            "assessments": assessments,
+            "strategic_warning": strategic_warning,
+            "relationship_insights": relationship_insights,
+            "threat_matrix": threat_matrix,
+            "top_entities": top_entities,
         },
     )
 

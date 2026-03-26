@@ -1,343 +1,576 @@
 {% extends "base.html" %}
 
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+    .story-expand { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .story-expand.open { max-height: 800px; }
+    .zone-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+    #map-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.95); }
+    #world-map { width: 100%; height: 100%; }
+    .leaflet-container { background: #0a0a0f; }
+    .zone-rect { fill: none; stroke-width: 1; opacity: 0.4; }
+</style>
+{% endblock %}
+
 {% block content %}
-<!-- ============================================================ -->
-<!-- ASK NARAD — Query Interface                                   -->
-<!-- ============================================================ -->
-<div class="mb-5 sm:mb-6">
-    <div id="query-box" class="bg-surface-2 border border-white/10 rounded-lg overflow-hidden focus-within:border-white/20 transition-colors">
-        <div class="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3">
-            <span class="font-mono text-[11px] text-white/25 flex-shrink-0">ASK</span>
-            <input id="query-input" type="text" placeholder="What happened the last time oil crossed $120? How is India exposed to the Iran situation?"
-                   class="flex-1 bg-transparent text-sm text-white/80 placeholder-white/15 outline-none font-sans"
+<!-- ASK BAR -->
+<div class="mb-4">
+    <div class="bg-surface-2 border border-white/10 rounded-lg focus-within:border-white/20 transition-colors">
+        <div class="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5">
+            <span class="font-mono text-[10px] text-white/20 flex-shrink-0">ASK</span>
+            <input id="query-input" type="text" placeholder="How is India exposed to the Iran conflict?"
+                   class="flex-1 bg-transparent text-[13px] sm:text-sm text-white/80 placeholder-white/15 outline-none"
                    onkeydown="if(event.key==='Enter')askNarad()">
-            <button onclick="askNarad()" class="font-mono text-[10px] text-white/30 hover:text-white/60 transition-colors px-2 py-1 rounded hover:bg-white/5">&#x23CE;</button>
+            <button onclick="askNarad()" class="font-mono text-[10px] text-white/25 hover:text-white/50 px-1.5 py-0.5 rounded hover:bg-white/5">&#x23CE;</button>
         </div>
     </div>
-    <div id="query-result" class="hidden mt-3 bg-surface-2 border border-white/5 rounded-lg p-4 sm:p-5">
-        <div id="query-loading" class="hidden text-center py-4">
-            <span class="inline-block w-2 h-2 rounded-full bg-white/30 pulse-dot"></span>
-            <span class="font-mono text-[11px] text-white/25 ml-2">ANALYZING...</span>
-        </div>
+    <div id="query-result" class="hidden mt-2 bg-surface-2 border border-white/5 rounded-lg p-4">
+        <div id="query-loading" class="hidden text-center py-3"><span class="w-2 h-2 rounded-full bg-white/30 pulse-dot inline-block"></span><span class="font-mono text-[10px] text-white/20 ml-2">ANALYZING...</span></div>
         <div id="query-answer"></div>
     </div>
 </div>
 
-<script>
-async function askNarad() {
-    const input = document.getElementById('query-input');
-    const q = input.value.trim();
-    if (!q) return;
-
-    // Stop any auto-refresh
-    if (typeof refreshTimer !== 'undefined') clearTimeout(refreshTimer);
-
-    const result = document.getElementById('query-result');
-    const loading = document.getElementById('query-loading');
-    const answer = document.getElementById('query-answer');
-
-    result.classList.remove('hidden');
-    loading.classList.remove('hidden');
-    answer.innerHTML = '';
-
-    try {
-        const resp = await fetch('/api/intel/query', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({question: q}),
-        });
-        const data = await resp.json();
-        loading.classList.add('hidden');
-
-        let html = `<p class="text-[13px] sm:text-sm text-white/70 leading-relaxed mb-3">${data.answer || 'No answer available.'}</p>`;
-
-        if (data.evidence && data.evidence.length) {
-            html += `<p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">Evidence</p>`;
-            html += `<div class="space-y-1.5 mb-3">`;
-            for (const e of data.evidence) {
-                html += `<div class="flex items-start gap-2 text-[11px] sm:text-[12px]">
-                    <span class="font-mono text-[9px] text-blue-400/50 mt-0.5 flex-shrink-0">${e.type || '?'}</span>
-                    <span class="text-white/40">${e.reference || ''}</span>
-                </div>`;
-            }
-            html += `</div>`;
-        }
-
-        if (data.confidence) {
-            html += `<span class="font-mono text-[9px] text-white/15">Confidence: ${data.confidence}</span>`;
-        }
-
-        if (data.follow_up_questions && data.follow_up_questions.length) {
-            html += `<div class="mt-3 pt-3 border-t border-white/5">`;
-            html += `<p class="font-mono text-[9px] text-white/15 mb-1.5">Follow-up questions:</p>`;
-            for (const fq of data.follow_up_questions) {
-                html += `<button onclick="document.getElementById('query-input').value='${fq.replace(/'/g, "\\'")}';askNarad()"
-                    class="block text-left text-[11px] sm:text-[12px] text-blue-400/40 hover:text-blue-400/70 transition-colors py-0.5">${fq}</button>`;
-            }
-            html += `</div>`;
-        }
-
-        answer.innerHTML = html;
-    } catch(e) {
-        loading.classList.add('hidden');
-        answer.innerHTML = `<p class="text-[12px] text-red-400/60">Query failed: ${e.message}</p>`;
-    }
-}
-</script>
-
 {% if briefing and stories %}
 
 <!-- ============================================================ -->
-<!-- HEADER BAR                                                    -->
+<!-- ROW 1: SITUATION STATUS + MARKET TICKER                       -->
 <!-- ============================================================ -->
-<div class="flex items-center justify-between mb-4 sm:mb-5">
-    <div>
-        <p class="font-mono text-[10px] sm:text-[11px] text-white/30 uppercase tracking-widest">Intelligence Briefing</p>
-        <p class="font-mono text-[10px] sm:text-[11px] text-white/20 mt-0.5">{{ (briefing.generated_at|ist).strftime('%d %b %Y &middot; %H:%M IST') }} &middot; {{ stories | length }} stories</p>
-    </div>
-    <div class="flex items-center gap-2">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+    <!-- Situation -->
+    <div class="bg-surface-2 border border-white/5 rounded-lg px-4 py-3">
         {% set critical_count = stories | selectattr('severity', 'equalto', 'critical') | list | length %}
-        {% if critical_count > 0 %}
-        <span class="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 border border-red-500/20 rounded text-[10px] sm:text-[11px] font-mono text-red-400">
-            <span class="w-1.5 h-1.5 rounded-full bg-red-500 pulse-dot"></span>
-            {{ critical_count }} CRITICAL
-        </span>
-        {% endif %}
+        {% set developing_count = stories | selectattr('severity', 'equalto', 'developing') | list | length %}
+        <div class="flex items-center gap-2">
+            <span class="zone-dot {% if critical_count > 0 %}bg-red-500 pulse-dot{% else %}bg-amber-400{% endif %}"></span>
+            <span class="font-mono text-[11px] sm:text-xs tracking-widest {% if critical_count > 0 %}text-red-400{% else %}text-amber-400{% endif %}">
+                {% if critical_count >= 2 %}CRITICAL{% elif critical_count >= 1 %}ELEVATED{% else %}ACTIVE{% endif %}
+            </span>
+        </div>
+        <p class="font-mono text-[10px] text-white/20 mt-1">{{ critical_count }} critical · {{ developing_count }} developing · {{ stories | length }} stories</p>
+        <p class="font-mono text-[10px] text-white/15 mt-0.5">{{ (briefing.generated_at|ist).strftime('%d %b %H:%M IST') }}</p>
+    </div>
+
+    <!-- Market ticker (compact) -->
+    <div class="bg-surface-2 border border-white/5 rounded-lg px-4 py-3">
+        <div class="grid grid-cols-3 gap-x-4 gap-y-1" id="market-compact">
+            <span class="font-mono text-[9px] text-white/15">Loading...</span>
+        </div>
     </div>
 </div>
 
-<!-- ============================================================ -->
-<!-- MARKET TICKER                                                 -->
-<!-- ============================================================ -->
-<div id="market-ticker" class="mb-4 sm:mb-5 -mx-4 px-4 sm:mx-0 sm:px-0">
-    <div class="flex gap-3 overflow-x-auto scroll-hide pb-1" id="ticker-row">
-        <span class="font-mono text-[9px] text-white/15 self-center flex-shrink-0">LOADING MARKETS...</span>
+<!-- Priority warning -->
+{% if strategic_warning %}
+<div class="bg-red-500/5 border border-red-500/15 rounded-lg px-4 py-2.5 mb-3">
+    <div class="flex items-center gap-2 mb-1">
+        <span class="w-1.5 h-1.5 rounded-full bg-red-500 pulse-dot"></span>
+        <span class="font-mono text-[9px] text-red-400 uppercase tracking-widest">Warning</span>
     </div>
-</div>
-<script>
-fetch('/api/intel/market').then(r=>r.json()).then(data=>{
-    const row = document.getElementById('ticker-row');
-    if (!Object.keys(data).length) { row.innerHTML='<span class="font-mono text-[9px] text-white/15">Market data loading...</span>'; return; }
-    row.innerHTML = '';
-    const order = ['BZ=F','CL=F','GC=F','NG=F','INR=X','^NSEI'];
-    const short = {'BZ=F':'BRENT','CL=F':'WTI','GC=F':'GOLD','NG=F':'NATGAS','INR=X':'USD/INR','^NSEI':'NIFTY'};
-    for (const sym of order) {
-        const d = data[sym]; if(!d) continue;
-        const color = d.change_1d >= 0 ? 'text-green-400' : 'text-red-400';
-        const arrow = d.change_1d >= 0 ? '&#x25B2;' : '&#x25BC;';
-        row.innerHTML += `<div class="flex-shrink-0 bg-surface-2 border border-white/5 rounded px-2.5 py-1.5">
-            <span class="font-mono text-[9px] text-white/25 block">${short[sym]||sym}</span>
-            <span class="font-mono text-[12px] text-white/60">${d.price.toLocaleString(undefined,{maximumFractionDigits:2})}</span>
-            <span class="font-mono text-[10px] ${color} ml-1">${arrow} ${Math.abs(d.change_1d).toFixed(1)}%</span>
-        </div>`;
-    }
-});
-</script>
-
-<!-- ============================================================ -->
-<!-- STRATEGIC OUTLOOK                                             -->
-<!-- ============================================================ -->
-{% if outlook %}
-<div class="bg-surface-2 border border-white/5 rounded-lg p-4 sm:p-5 mb-4 sm:mb-5">
-    <p class="font-mono text-[10px] sm:text-[11px] text-white/30 uppercase tracking-widest mb-3 sm:mb-4">Strategic Assessment</p>
-
-    {% if outlook.india_strategic_assessment %}
-    <p class="text-sm sm:text-base text-white/80 leading-relaxed mb-4 sm:mb-5">{{ outlook.india_strategic_assessment }}</p>
-    {% endif %}
-
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {% if outlook.next_24h %}
-        <div class="bg-surface-3 rounded-md p-3">
-            <p class="font-mono text-[9px] sm:text-[10px] text-amber-500 uppercase tracking-widest mb-1.5">Next 24h</p>
-            <p class="text-[12px] sm:text-[13px] text-white/60 leading-relaxed">{{ outlook.next_24h }}</p>
-        </div>
-        {% endif %}
-        {% if outlook.next_week %}
-        <div class="bg-surface-3 rounded-md p-3">
-            <p class="font-mono text-[9px] sm:text-[10px] text-blue-400 uppercase tracking-widest mb-1.5">7-Day Outlook</p>
-            <p class="text-[12px] sm:text-[13px] text-white/60 leading-relaxed">{{ outlook.next_week }}</p>
-        </div>
-        {% endif %}
-        {% if outlook.wildcard %}
-        <div class="bg-surface-3 rounded-md p-3 border border-red-500/10">
-            <p class="font-mono text-[9px] sm:text-[10px] text-red-400 uppercase tracking-widest mb-1.5">Wildcard</p>
-            <p class="text-[12px] sm:text-[13px] text-white/60 leading-relaxed">{{ outlook.wildcard }}</p>
-        </div>
-        {% endif %}
-    </div>
+    <p class="text-[12px] text-red-200/60 leading-relaxed">{{ strategic_warning }}</p>
 </div>
 {% endif %}
 
 <!-- ============================================================ -->
-<!-- STORIES GRID                                                  -->
+<!-- ROW 2: STRATEGIC ASSESSMENT (one line)                        -->
 <!-- ============================================================ -->
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5">
-    {% for story in stories %}
-    <div class="bg-surface-2 border rounded-lg overflow-hidden
-        {% if story.severity == 'critical' %}border-red-500/20 glow-red
-        {% elif story.severity == 'developing' %}border-amber-500/10 glow-amber
-        {% else %}border-white/5{% endif %}">
+{% if outlook and outlook.india_strategic_assessment %}
+<div class="bg-surface-2 border border-white/5 rounded-lg px-4 py-3 mb-3">
+    <p class="text-[12px] sm:text-[13px] text-white/60 leading-relaxed">{{ outlook.india_strategic_assessment }}</p>
+</div>
+{% endif %}
 
-        <!-- Severity bar -->
-        <div class="h-0.5
-            {% if story.severity == 'critical' %}bg-red-500
-            {% elif story.severity == 'developing' %}bg-amber-500
-            {% else %}bg-white/10{% endif %}"></div>
+<!-- ============================================================ -->
+<!-- ROW 3: STORIES (left) + SIGNALS/GEOINT (right)                -->
+<!-- ============================================================ -->
+<div class="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-3">
 
-        <div class="p-3.5 sm:p-4">
-            <!-- Header -->
-            <div class="flex items-center gap-1.5 mb-2">
-                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0
-                    {% if story.severity == 'critical' %}bg-red-500 pulse-dot
-                    {% elif story.severity == 'developing' %}bg-amber-500
-                    {% else %}bg-white/20{% endif %}"></span>
-                <span class="font-mono text-[9px] sm:text-[10px] uppercase tracking-widest
-                    {% if story.severity == 'critical' %}text-red-400
-                    {% elif story.severity == 'developing' %}text-amber-400
-                    {% else %}text-white/30{% endif %}">
-                    {{ story.severity }}
-                </span>
-                {% if story.category %}
-                <span class="font-mono text-[9px] sm:text-[10px] text-white/20">/</span>
-                <span class="font-mono text-[9px] sm:text-[10px] text-white/30 uppercase tracking-wider">{{ story.category }}</span>
-                {% endif %}
-                <span class="ml-auto font-mono text-[9px] sm:text-[10px] text-white/20">{{ story.source_count }}src</span>
+    <!-- LEFT: Priority stories (3 cols) -->
+    <div class="lg:col-span-3 space-y-2">
+        {% for story in stories %}
+        <div class="bg-surface-2 border rounded-lg overflow-hidden
+            {% if story.severity == 'critical' %}border-red-500/20{% elif story.severity == 'developing' %}border-amber-500/10{% else %}border-white/5{% endif %}">
+
+            <!-- Compact header — always visible -->
+            <div class="px-3.5 sm:px-4 py-2.5 sm:py-3 cursor-pointer" onclick="toggleStory(this)">
+                <div class="flex items-start gap-2">
+                    <span class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0
+                        {% if story.severity == 'critical' %}bg-red-500 pulse-dot
+                        {% elif story.severity == 'developing' %}bg-amber-400
+                        {% else %}bg-white/20{% endif %}"></span>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-0.5">
+                            <span class="font-mono text-[9px] uppercase tracking-widest
+                                {% if story.severity == 'critical' %}text-red-400{% elif story.severity == 'developing' %}text-amber-400{% else %}text-white/25{% endif %}">{{ story.severity }}</span>
+                            {% if story.category %}
+                            <span class="font-mono text-[9px] text-white/15 uppercase">{{ story.category }}</span>
+                            {% endif %}
+                            <span class="font-mono text-[9px] text-white/10 ml-auto">{{ story.source_count }}src</span>
+                        </div>
+                        <h3 class="text-[13px] sm:text-[14px] font-medium text-white/80 leading-snug">{{ story.headline }}</h3>
+                        {% if story.india_impact %}
+                        <p class="text-[11px] sm:text-[12px] text-orange-300/40 mt-0.5 line-clamp-2">India: {{ story.india_impact }}</p>
+                        {% endif %}
+                    </div>
+                    <span class="font-mono text-[10px] text-white/15 mt-1 flex-shrink-0 expand-arrow">&#x25B8;</span>
+                </div>
             </div>
 
-            <!-- Headline -->
-            <h2 class="text-[14px] sm:text-[15px] font-semibold text-white/90 leading-snug mb-1.5">{{ story.headline }}</h2>
-            <p class="text-[12px] sm:text-[13px] text-white/50 leading-relaxed mb-3 line-clamp-3">{{ story.summary }}</p>
+            <!-- Expandable detail -->
+            <div class="story-expand">
+                <div class="px-3.5 sm:px-4 pb-3.5 sm:pb-4 pt-0">
+                    <p class="text-[12px] sm:text-[13px] text-white/45 leading-relaxed mb-3">{{ story.summary }}</p>
 
-            <!-- India Impact -->
-            {% if story.india_impact %}
-            <div class="bg-orange-500/5 border-l-2 border-orange-500/40 px-3 py-2 rounded-r mb-3">
-                <p class="font-mono text-[9px] sm:text-[10px] text-orange-400 uppercase tracking-widest mb-0.5">India</p>
-                <p class="text-[12px] sm:text-[13px] text-orange-200/70 leading-relaxed">{{ story.india_impact }}</p>
+                    {% if story.india_impact %}
+                    <div class="bg-orange-500/5 border-l-2 border-orange-500/30 px-3 py-2 rounded-r mb-3">
+                        <p class="font-mono text-[9px] text-orange-400/60 uppercase tracking-widest mb-0.5">India</p>
+                        <p class="text-[12px] text-orange-200/50 leading-relaxed">{{ story.india_impact }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if story.scenarios %}
+                    <div class="space-y-1 mb-3">
+                        {% if story.scenarios.likely %}
+                        <div class="flex items-start gap-1.5">
+                            <span class="font-mono text-[9px] text-blue-400 mt-0.5 w-2">L</span>
+                            <p class="text-[11px] text-white/30 leading-relaxed">{{ story.scenarios.likely }}</p>
+                        </div>
+                        {% endif %}
+                        {% if story.scenarios.worst_case %}
+                        <div class="flex items-start gap-1.5">
+                            <span class="font-mono text-[9px] text-red-400 mt-0.5 w-2">W</span>
+                            <p class="text-[11px] text-white/30 leading-relaxed">{{ story.scenarios.worst_case }}</p>
+                        </div>
+                        {% endif %}
+                        {% if story.scenarios.historical_parallel %}
+                        <div class="flex items-start gap-1.5">
+                            <span class="font-mono text-[9px] text-purple-400 mt-0.5 w-2">H</span>
+                            <p class="text-[11px] text-white/30 leading-relaxed">{{ story.scenarios.historical_parallel }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if story.watch_signals %}
+                    <div class="flex flex-wrap gap-1 mb-2">
+                        {% for signal in story.watch_signals %}
+                        <span class="font-mono text-[9px] px-1.5 py-0.5 bg-white/5 text-white/25 rounded">&#x25C9; {{ signal }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if story.event_id %}
+                    <a href="/events/{{ story.event_id }}" class="font-mono text-[10px] text-white/15 hover:text-white/30">TIMELINE &rarr;</a>
+                    {% endif %}
+                </div>
             </div>
-            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
 
-            <!-- Scenarios -->
-            {% if story.scenarios %}
-            <div class="space-y-1.5 mb-3">
-                {% if story.scenarios.likely %}
+    <!-- RIGHT: Signals + GEOINT + Zones (2 cols) -->
+    <div class="lg:col-span-2 space-y-2">
+
+        <!-- Signals -->
+        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
+            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">Signals</p>
+            <div id="signals-panel" class="space-y-1.5">
+                {% if outlook and outlook.next_24h %}
                 <div class="flex items-start gap-2">
-                    <span class="font-mono text-[9px] text-blue-400 mt-0.5 w-3 flex-shrink-0">L</span>
-                    <p class="text-[11px] sm:text-[12px] text-white/40 leading-relaxed">{{ story.scenarios.likely }}</p>
+                    <span class="font-mono text-[9px] text-amber-400 mt-0.5">24h</span>
+                    <p class="text-[11px] text-white/35 leading-relaxed">{{ outlook.next_24h }}</p>
                 </div>
                 {% endif %}
-                {% if story.scenarios.worst_case %}
+                {% if outlook and outlook.wildcard %}
                 <div class="flex items-start gap-2">
-                    <span class="font-mono text-[9px] text-red-400 mt-0.5 w-3 flex-shrink-0">W</span>
-                    <p class="text-[11px] sm:text-[12px] text-white/40 leading-relaxed">{{ story.scenarios.worst_case }}</p>
-                </div>
-                {% endif %}
-                {% if story.scenarios.historical_parallel %}
-                <div class="flex items-start gap-2">
-                    <span class="font-mono text-[9px] text-purple-400 mt-0.5 w-3 flex-shrink-0">H</span>
-                    <p class="text-[11px] sm:text-[12px] text-white/40 leading-relaxed">{{ story.scenarios.historical_parallel }}</p>
+                    <span class="font-mono text-[9px] text-red-400 mt-0.5">&#x26A0;</span>
+                    <p class="text-[11px] text-white/25 leading-relaxed">{{ outlook.wildcard }}</p>
                 </div>
                 {% endif %}
             </div>
-            {% endif %}
+        </div>
 
-            <!-- Watch signals -->
-            {% if story.watch_signals %}
-            <div class="flex flex-wrap gap-1 mb-3">
-                {% for signal in story.watch_signals %}
-                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-white/5 border border-white/5 rounded text-[10px] sm:text-[11px] text-white/30 font-mono">
-                    <span class="text-amber-500">&#x25C9;</span>{{ signal }}
-                </span>
+        <!-- GEOINT + Zones combined -->
+        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
+            <div class="flex items-center justify-between mb-2">
+                <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest">Satellite + Aircraft</p>
+                <button onclick="document.getElementById('map-overlay').classList.toggle('hidden')" class="font-mono text-[9px] text-blue-400/50 hover:text-blue-400/80 transition-colors">MAP &#x25B8;</button>
+            </div>
+            <div id="geoint-compact" class="space-y-0">
+                <span class="font-mono text-[9px] text-white/15 pulse-dot">Scanning 8 zones...</span>
+            </div>
+        </div>
+
+        <!-- Threat Matrix -->
+        {% if threat_matrix %}
+        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
+            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-0.5">India Bilateral Relations</p>
+            <p class="font-mono text-[8px] text-white/10 mb-2"><span class="text-green-400/50">Green</span> = cooperation signals, <span class="text-red-400/50">Red</span> = tension signals — derived from news event analysis</p>
+            {% for entry in threat_matrix %}
+            <div class="flex items-center gap-2 py-1 {% if not loop.last %}border-b border-white/5{% endif %}">
+                <span class="text-[11px] text-white/40 w-14 truncate">{{ entry.country }}</span>
+                <div class="flex-1 flex gap-0.5 h-1.5 rounded-full overflow-hidden bg-surface-1">
+                    <div class="bg-green-500/50 rounded-full" style="width: {{ entry.cooperation * 100 }}%"></div>
+                    <div class="flex-1"></div>
+                    <div class="bg-red-500/50 rounded-full" style="width: {{ entry.tension * 100 }}%"></div>
+                </div>
+                <span class="font-mono text-[8px] w-10 text-right
+                    {% if entry.trend == 'warming' %}text-green-400/40
+                    {% elif entry.trend == 'cooling' %}text-red-400/40
+                    {% elif entry.trend == 'volatile' %}text-amber-400/40
+                    {% else %}text-white/15{% endif %}">{{ entry.trend }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Relationship shifts -->
+        {% if relationship_insights %}
+        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
+            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">Shifts</p>
+            {% for ri in relationship_insights %}
+            <div class="flex items-start gap-1.5 {% if not loop.last %}mb-1.5{% endif %}">
+                <span class="w-1 h-1 rounded-full mt-1 flex-shrink-0
+                    {% if ri.direction == 'warming' %}bg-green-400{% elif ri.direction == 'cooling' %}bg-red-400{% elif ri.direction == 'volatile' %}bg-amber-400{% else %}bg-purple-400{% endif %}"></span>
+                <div>
+                    <span class="font-mono text-[8px] text-white/25">{{ ri.countries | join(' ↔ ') }}</span>
+                    <p class="text-[10px] text-white/25 leading-relaxed">{{ ri.insight }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Entities -->
+        {% if top_entities %}
+        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
+            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">Entities</p>
+            <div class="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                {% for ent in top_entities %}
+                <div class="flex items-center gap-1 py-0.5">
+                    <span class="w-1 h-1 rounded-full flex-shrink-0
+                        {% if ent.type == 'country' %}bg-blue-400{% elif ent.type == 'person' %}bg-purple-400{% elif ent.type == 'organization' %}bg-green-400{% else %}bg-white/20{% endif %}"></span>
+                    <span class="font-mono text-[9px] text-white/30 truncate">{{ ent.name }}</span>
+                    <span class="font-mono text-[8px] text-white/10 ml-auto">{{ ent.mentions }}</span>
+                </div>
                 {% endfor %}
             </div>
-            {% endif %}
-
-            {% if story.event_id %}
-            <a href="/events/{{ story.event_id }}" class="font-mono text-[10px] sm:text-[11px] text-white/20 hover:text-white/40 active:text-white/50 transition-colors py-1 inline-flex items-center gap-1">
-                TIMELINE <span class="text-white/10">&rarr;</span>
-            </a>
-            {% endif %}
         </div>
+        {% endif %}
+
+        <!-- 7-Day -->
+        {% if outlook and outlook.next_week %}
+        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
+            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">7-Day</p>
+            <p class="text-[10px] text-white/25 leading-relaxed">{{ outlook.next_week }}</p>
+        </div>
+        {% endif %}
     </div>
-    {% endfor %}
 </div>
 
 <!-- ============================================================ -->
-<!-- CONNECTIONS                                                    -->
+<!-- ROW 4: CONNECTIONS (compact)                                   -->
 <!-- ============================================================ -->
 {% if connections %}
-<div class="bg-surface-2 border border-white/5 rounded-lg p-4 sm:p-5 mb-4 sm:mb-5">
-    <p class="font-mono text-[10px] sm:text-[11px] text-white/30 uppercase tracking-widest mb-3">Causal Links</p>
-    <div class="space-y-2">
+<div class="bg-surface-2 border border-white/5 rounded-lg px-4 py-2.5">
+    <div class="flex items-center gap-4 overflow-x-auto scroll-hide">
+        <span class="font-mono text-[9px] text-white/20 uppercase tracking-widest flex-shrink-0">Links</span>
         {% for conn in connections %}
-        <div class="flex items-start gap-2">
-            <span class="text-blue-500/50 mt-0.5 flex-shrink-0 font-mono text-[10px]">&#x2192;</span>
-            <p class="text-[12px] sm:text-[13px] text-white/50 leading-relaxed">{{ conn.narrative }}</p>
-        </div>
+        <p class="text-[11px] text-white/30 flex-shrink-0">{{ conn.narrative }}</p>
         {% endfor %}
     </div>
 </div>
 {% endif %}
 
 <!-- Footer -->
-<div class="text-center py-4 sm:py-6">
-    <p class="font-mono text-[10px] text-white/15">{{ (briefing.generated_at|ist).strftime('%H:%M IST') }} &middot; REFRESH ~30M &middot; {{ total_events }} EVENTS TRACKED</p>
-    <a href="/explore" class="font-mono text-[10px] text-white/20 hover:text-white/40 mt-1 inline-block py-1">ALL EVENTS &rarr;</a>
+<div class="text-center py-3 font-mono text-[9px] text-white/10">
+    {{ (briefing.generated_at|ist).strftime('%H:%M IST') }} · REFRESH ~30M · {{ total_events }} EVENTS
+</div>
+
+<!-- ============================================================ -->
+<!-- MAP OVERLAY                                                    -->
+<!-- ============================================================ -->
+<div id="map-overlay" class="hidden">
+    <div class="absolute top-3 right-4 z-[1000] flex items-center gap-3">
+        <span class="font-mono text-[10px] text-white/30">
+            🔥 heat signatures · ✈️ aircraft · ▭ monitored zones
+        </span>
+        <button onclick="document.getElementById('map-overlay').classList.add('hidden')"
+                class="font-mono text-sm text-white/50 hover:text-white bg-black/50 w-8 h-8 rounded-full flex items-center justify-center">✕</button>
+    </div>
+    <div id="world-map"></div>
 </div>
 
 {% else %}
-<!-- ============================================================ -->
-<!-- LOADING STATE                                                 -->
-<!-- ============================================================ -->
-<div class="text-center py-16 sm:py-24 px-4">
-    <div class="inline-flex items-center justify-center w-12 h-12 border border-white/10 rounded-full mb-5">
+<!-- LOADING STATE -->
+<div class="text-center py-16 px-4">
+    <div class="inline-flex items-center justify-center w-12 h-12 border border-white/10 rounded-full mb-4">
         <span class="w-2 h-2 rounded-full bg-white/30 pulse-dot"></span>
     </div>
-    <h2 class="font-mono text-sm sm:text-base text-white/60 tracking-wider mb-2">INITIALIZING</h2>
-    <p class="text-white/25 text-sm max-w-sm mx-auto leading-relaxed mb-6">
-        Analyzing sources, clustering events, running scenario models.
-    </p>
-    <div class="space-y-2 text-left max-w-xs mx-auto">
+    <h2 class="font-mono text-sm text-white/50 tracking-wider mb-2">INITIALIZING</h2>
+    <p class="text-white/20 text-sm max-w-sm mx-auto mb-5">Analyzing sources, clustering events, running scenario models.</p>
+    <div class="space-y-1.5 text-left max-w-xs mx-auto">
         <div class="flex items-center gap-2 font-mono text-[11px]">
             <span class="w-1.5 h-1.5 rounded-full {% if total_articles > 0 %}bg-green-500{% else %}bg-white/20 pulse-dot{% endif %}"></span>
-            <span class="text-white/30">INGEST</span>
+            <span class="text-white/25">INGEST</span>
             <span class="text-white/15 ml-auto">{% if total_articles > 0 %}{{ total_articles }}{% else %}...{% endif %}</span>
         </div>
         <div class="flex items-center gap-2 font-mono text-[11px]">
             <span class="w-1.5 h-1.5 rounded-full {% if total_events > 0 %}bg-green-500{% else %}bg-white/20 pulse-dot{% endif %}"></span>
-            <span class="text-white/30">CLUSTER</span>
+            <span class="text-white/25">CLUSTER</span>
             <span class="text-white/15 ml-auto">{% if total_events > 0 %}{{ total_events }}{% else %}...{% endif %}</span>
         </div>
         <div class="flex items-center gap-2 font-mono text-[11px]">
             <span class="w-1.5 h-1.5 rounded-full {% if events_summarized > 0 %}bg-green-500{% else %}bg-white/20 pulse-dot{% endif %}"></span>
-            <span class="text-white/30">ANALYZE</span>
+            <span class="text-white/25">ANALYZE</span>
             <span class="text-white/15 ml-auto">{% if events_summarized > 0 %}{{ events_summarized }}{% else %}...{% endif %}</span>
         </div>
         <div class="flex items-center gap-2 font-mono text-[11px]">
             <span class="w-1.5 h-1.5 rounded-full bg-white/20 pulse-dot"></span>
-            <span class="text-white/30">SCENARIO</span>
+            <span class="text-white/25">SCENARIO</span>
             <span class="text-white/15 ml-auto">...</span>
         </div>
     </div>
-
-    {% if total_events > 0 %}
-    <div class="mt-8">
-        <a href="/explore" class="font-mono text-[11px] text-white/25 hover:text-white/40 py-1">VIEW RAW EVENTS &rarr;</a>
-    </div>
-    {% endif %}
-
     <script>
-    // Only auto-refresh if user isn't interacting with the query box
     let refreshTimer = setTimeout(() => location.reload(), 15000);
     const qi = document.getElementById('query-input');
-    if (qi) {
-        qi.addEventListener('focus', () => clearTimeout(refreshTimer));
-        qi.addEventListener('input', () => clearTimeout(refreshTimer));
-    }
-    // Also cancel if query result is showing
-    if (document.getElementById('query-result') && !document.getElementById('query-result').classList.contains('hidden')) {
-        clearTimeout(refreshTimer);
-    }
+    if (qi) { qi.addEventListener('focus', () => clearTimeout(refreshTimer)); qi.addEventListener('input', () => clearTimeout(refreshTimer)); }
     </script>
 </div>
 {% endif %}
+
+<!-- ============================================================ -->
+<!-- SCRIPTS                                                        -->
+<!-- ============================================================ -->
+<script>
+function toggleStory(el) {
+    const expand = el.nextElementSibling;
+    const arrow = el.querySelector('.expand-arrow');
+    expand.classList.toggle('open');
+    arrow.innerHTML = expand.classList.contains('open') ? '&#x25BE;' : '&#x25B8;';
+}
+
+// Market data (compact grid)
+fetch('/api/intel/market').then(r=>r.json()).then(data=>{
+    const el = document.getElementById('market-compact');
+    if (!Object.keys(data).length) { el.innerHTML='<span class="font-mono text-[9px] text-white/15">Loading...</span>'; return; }
+    const order = ['BZ=F','CL=F','GC=F','INR=X','^NSEI','ZW=F'];
+    const short = {'BZ=F':'BRENT','CL=F':'WTI','GC=F':'GOLD','INR=X':'USD/INR','^NSEI':'NIFTY','ZW=F':'WHEAT'};
+    let html = '';
+    for (const sym of order) {
+        const d = data[sym]; if(!d) continue;
+        const c = d.change_1d >= 0 ? 'text-green-400/70' : 'text-red-400/70';
+        const a = d.change_1d >= 0 ? '▲' : '▼';
+        html += `<div class="flex items-baseline justify-between">
+            <span class="font-mono text-[9px] text-white/20">${short[sym]}</span>
+            <span class="font-mono text-[10px] text-white/50">${d.price.toLocaleString(undefined,{maximumFractionDigits:1})}</span>
+            <span class="font-mono text-[9px] ${c}">${a}${Math.abs(d.change_1d).toFixed(1)}%</span>
+        </div>`;
+    }
+    el.innerHTML = html;
+});
+
+// GEOINT
+let geointData = null;
+fetch('/api/intel/geoint').then(r=>r.json()).then(data=>{
+    geointData = data;
+    const el = document.getElementById('geoint-compact');
+    const allSignals = [...(data.thermal||[]), ...(data.aircraft||[])];
+    const zoneNames = data.zone_names || {};
+    const activeZones = new Set(allSignals.map(s => s.data?.zone));
+
+    if (allSignals.length === 0) {
+        // Show zones as green
+        let html = '';
+        for (const [k,v] of Object.entries(zoneNames)) {
+            html += `<div class="flex items-center gap-1.5 py-1 border-b border-white/5">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500/40"></span>
+                <span class="font-mono text-[10px] text-white/25">${v}</span>
+                <span class="font-mono text-[9px] text-green-400/30 ml-auto">CLEAR</span>
+            </div>`;
+        }
+        el.innerHTML = html;
+        return;
+    }
+
+    let html = '';
+
+    // Active signals (expandable)
+    for (let i = 0; i < allSignals.length && i < 6; i++) {
+        const s = allSignals[i];
+        const d = s.data || {};
+        const icon = d.type === 'firms' ? '🔥' : '✈️';
+        const c = {critical:'text-red-400',high:'text-amber-400',medium:'text-blue-400',low:'text-white/30'}[s.severity]||'text-white/30';
+
+        html += `<div class="border-b border-white/5">
+            <div class="flex items-center gap-1.5 py-1.5 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                <span class="text-[11px]">${icon}</span>
+                <span class="font-mono text-[10px] ${c} flex-1">${s.title}</span>
+                <span class="font-mono text-[9px] text-white/15">&#x25BE;</span>
+            </div>
+            <div class="hidden pb-2 pl-6">
+                <p class="font-mono text-[9px] text-white/25 leading-relaxed mb-1">${d.interpretation || ''}</p>`;
+
+        if (d.type === 'firms') {
+            html += `<div class="grid grid-cols-3 gap-2 font-mono text-[9px]">
+                <div><span class="text-white/15">Detections</span><br><span class="text-white/40">${d.fire_count || 0}</span></div>
+                <div><span class="text-white/15">Peak intensity</span><br><span class="text-white/40">${d.max_frp || 0} FRP</span></div>
+                <div><span class="text-white/15">Nighttime</span><br><span class="text-white/40">${d.night_count || 0}</span></div>
+            </div>`;
+        } else if (d.type === 'adsb') {
+            html += `<div class="font-mono text-[9px] text-white/15 mb-1">${d.total_aircraft || 0} total aircraft, ${d.military_count || 0} military-pattern</div>`;
+            if (d.details && d.details.length) {
+                html += `<table class="w-full font-mono text-[9px]">
+                    <tr class="text-white/15"><td>Callsign</td><td>Country</td><td>Alt</td><td>Speed</td></tr>`;
+                for (const ac of d.details.slice(0,5)) {
+                    html += `<tr class="text-white/30"><td>${ac.callsign||'?'}</td><td>${ac.country||'?'}</td><td>${ac.altitude_m||0}m</td><td>${ac.speed_ms||0}m/s</td></tr>`;
+                }
+                html += `</table>`;
+            }
+        }
+        html += `</div></div>`;
+    }
+
+    // Quiet zones
+    for (const [k,v] of Object.entries(zoneNames)) {
+        if (!activeZones.has(k)) {
+            html += `<div class="flex items-center gap-1.5 py-1 border-b border-white/5">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500/40"></span>
+                <span class="font-mono text-[10px] text-white/20">${v}</span>
+                <span class="font-mono text-[9px] text-green-400/30 ml-auto">clear</span>
+            </div>`;
+        }
+    }
+
+    el.innerHTML = html;
+
+    // Also populate map if open
+    if (typeof initMap === 'function') initMap(data);
+});
+
+// Map
+let map = null;
+function initMap(data) {
+    if (map) return; // already initialized
+    const el = document.getElementById('world-map');
+    if (!el) return;
+
+    map = L.map('world-map', {
+        center: [25, 65],
+        zoom: 4,
+        zoomControl: true,
+        attributionControl: false,
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+    }).addTo(map);
+
+    // Monitored zones as rectangles
+    const zones = {
+        strait_of_hormuz: {bounds: [[24,54],[28,58]], color: '#f59e0b'},
+        india_pakistan_border: {bounds: [[28,66],[36,78]], color: '#ef4444'},
+        india_china_ladakh: {bounds: [[32,76],[36,80]], color: '#ef4444'},
+        india_china_east: {bounds: [[26,90],[30,97]], color: '#ef4444'},
+        middle_east: {bounds: [[25,44],[38,56]], color: '#f59e0b'},
+        gulf_of_aden: {bounds: [[10,42],[16,52]], color: '#3b82f6'},
+        south_china_sea: {bounds: [[5,108],[22,122]], color: '#a855f7'},
+        indian_ocean: {bounds: [[-5,60],[15,85]], color: '#3b82f6'},
+    };
+
+    const zoneNames = data.zone_names || {};
+    const activeZones = new Set([...(data.thermal||[]), ...(data.aircraft||[])].map(s => s.data?.zone));
+
+    for (const [id, z] of Object.entries(zones)) {
+        const active = activeZones.has(id);
+        const color = active ? z.color : '#ffffff';
+        const opacity = active ? 0.3 : 0.05;
+        const rect = L.rectangle(z.bounds, {color: color, weight: 1, fillOpacity: opacity, opacity: 0.5}).addTo(map);
+        rect.bindPopup(`<div style="font-family:monospace;font-size:11px;"><b>${zoneNames[id]||id}</b><br>${active ? '⚠ Activity detected' : '✓ Clear'}</div>`);
+    }
+
+    // Thermal anomalies
+    for (const t of (data.thermal||[])) {
+        const d = t.data || {};
+        const center = [(d.bbox?.[0]||0 + d.bbox?.[2]||0)/2, (d.bbox?.[1]||0 + d.bbox?.[3]||0)/2];
+        const radius = Math.min(d.fire_count * 500, 100000);
+        const sevColor = {critical:'#ef4444',high:'#f59e0b',medium:'#3b82f6',low:'#6b7280'}[t.severity]||'#6b7280';
+        L.circle(center, {radius: radius, color: sevColor, fillColor: sevColor, fillOpacity: 0.3, weight: 1}).addTo(map)
+            .bindPopup(`<div style="font-family:monospace;font-size:11px;"><b>🔥 ${d.zone_name||''}</b><br>${d.fire_count} detections<br>Peak: ${d.max_frp||0} FRP<br>${d.interpretation||''}</div>`);
+    }
+
+    // Aircraft
+    for (const a of (data.aircraft||[])) {
+        const d = a.data || {};
+        const center = [(d.bbox?.[0]||25), (d.bbox?.[1]||70)];
+        // Get center of the zone
+        const zone = zones[d.zone];
+        if (zone) {
+            const c = [(zone.bounds[0][0]+zone.bounds[1][0])/2, (zone.bounds[0][1]+zone.bounds[1][1])/2];
+            let details = '';
+            if (d.details) {
+                for (const ac of d.details.slice(0,5)) {
+                    details += `${ac.callsign} (${ac.country}) ${ac.altitude_m}m<br>`;
+                }
+            }
+            L.marker(c, {icon: L.divIcon({className:'',html:`<span style="font-size:18px">✈️</span>`,iconSize:[20,20]})}).addTo(map)
+                .bindPopup(`<div style="font-family:monospace;font-size:11px;"><b>✈️ ${d.zone_name||''}</b><br>${d.military_count} military-pattern<br>${d.total_aircraft} total<br><br>${details}</div>`);
+        }
+    }
+
+    // India marker
+    L.marker([28.6, 77.2], {icon: L.divIcon({className:'',html:`<span style="font-size:14px">🇮🇳</span>`,iconSize:[16,16]})}).addTo(map)
+        .bindPopup('<div style="font-family:monospace;font-size:11px;"><b>New Delhi</b></div>');
+
+    // Invalidate size after overlay shows
+    setTimeout(() => map.invalidateSize(), 100);
+}
+
+// Initialize map when overlay becomes visible
+const mapOverlay = document.getElementById('map-overlay');
+if (mapOverlay) {
+    const observer = new MutationObserver(() => {
+        if (!mapOverlay.classList.contains('hidden')) {
+            if (geointData) initMap(geointData);
+            setTimeout(() => map && map.invalidateSize(), 200);
+        }
+    });
+    observer.observe(mapOverlay, {attributes: true, attributeFilter: ['class']});
+}
+
+// Query
+async function askNarad() {
+    const input = document.getElementById('query-input');
+    const q = input.value.trim();
+    if (!q) return;
+    if (typeof refreshTimer !== 'undefined') clearTimeout(refreshTimer);
+    const result = document.getElementById('query-result');
+    const loading = document.getElementById('query-loading');
+    const answer = document.getElementById('query-answer');
+    result.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    answer.innerHTML = '';
+    try {
+        const resp = await fetch('/api/intel/query', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+        const data = await resp.json();
+        loading.classList.add('hidden');
+        let html = `<p class="text-[13px] text-white/60 leading-relaxed mb-2">${data.answer||'No answer.'}</p>`;
+        if (data.evidence?.length) {
+            html += `<div class="space-y-1 mb-2">`;
+            for (const e of data.evidence.slice(0,3)) html += `<div class="font-mono text-[9px] text-white/20">↳ ${e.reference||''}</div>`;
+            html += `</div>`;
+        }
+        if (data.follow_up_questions?.length) {
+            html += `<div class="flex flex-wrap gap-1 mt-2">`;
+            for (const fq of data.follow_up_questions.slice(0,2))
+                html += `<button onclick="document.getElementById('query-input').value='${fq.replace(/'/g,"\\'")}';askNarad()" class="font-mono text-[9px] text-blue-400/30 hover:text-blue-400/60 px-1.5 py-0.5 bg-white/5 rounded">${fq}</button>`;
+            html += `</div>`;
+        }
+        answer.innerHTML = html;
+    } catch(e) {
+        loading.classList.add('hidden');
+        answer.innerHTML = `<p class="text-[11px] text-red-400/50">Failed: ${e.message}</p>`;
+    }
+}
+</script>
 {% endblock %}
