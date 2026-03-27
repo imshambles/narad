@@ -1,0 +1,191 @@
+{
+  "indian_bases": [
+    {"name": "INS Kadamba", "type": "navy", "lat": 14.8, "lon": 74.1},
+    {"name": "Eastern Naval Command", "type": "navy", "lat": 17.7, "lon": 83.2},
+    {"name": "Western Naval Command", "type": "navy", "lat": 18.9, "lon": 72.8},
+    {"name": "Andaman & Nicobar Command", "type": "navy", "lat": 11.6, "lon": 92.7},
+    {"name": "Ambala Air Station (Rafale)", "type": "air", "lat": 30.3, "lon": 76.8},
+    {"name": "Hindon Air Force Station", "type": "air", "lat": 28.7, "lon": 77.3},
+    {"name": "Thanjavur Air Base (Rafale)", "type": "air", "lat": 10.7, "lon": 79.1},
+    {"name": "Leh Air Station", "type": "air", "lat": 34.1, "lon": 77.5},
+    {"name": "Srinagar Air Base", "type": "air", "lat": 34.0, "lon": 74.8},
+    {"name": "Jaisalmer Air Base", "type": "air", "lat": 26.8, "lon": 70.9},
+    {"name": "Siachen Base Camp", "type": "army", "lat": 35.2, "lon": 77.1},
+    {"name": "Mathura (1 Corps - Strike)", "type": "army", "lat": 27.5, "lon": 77.7},
+    {"name": "Bhopal (21 Corps - Strike)", "type": "army", "lat": 23.2, "lon": 77.4},
+    {"name": "Tezpur (4 Corps - Mountain)", "type": "army", "lat": 26.6, "lon": 92.8}
+  ],
+  "chinese_bases": [
+    {"name": "Hotan Air Base", "type": "air", "lat": 37.0, "lon": 79.8},
+    {"name": "Kashgar Air Base", "type": "air", "lat": 39.5, "lon": 76.0},
+    {"name": "Ngari Gunsa (Near LAC)", "type": "air", "lat": 32.1, "lon": 80.1},
+    {"name": "Lhasa Gonggar", "type": "air", "lat": 29.3, "lon": 90.9},
+    {"name": "Shigatse Air Base", "type": "air", "lat": 29.3, "lon": 89.3},
+    {"name": "Coco Islands (SIGINT)", "type": "navy", "lat": 14.1, "lon": 93.4},
+    {"name": "Djibouti Base", "type": "navy", "lat": 11.5, "lon": 43.1},
+    {"name": "Hainan Yulin Naval Base", "type": "navy", "lat": 18.2, "lon": 109.5},
+    {"name": "Fiery Cross Reef (SCS)", "type": "navy", "lat": 9.5, "lon": 112.9},
+    {"name": "Mischief Reef (SCS)", "type": "navy", "lat": 9.9, "lon": 115.5},
+    {"name": "Subi Reef (SCS)", "type": "navy", "lat": 10.9, "lon": 114.1},
+    {"name": "Ream Naval Base (Cambodia)", "type": "navy", "lat": 10.5, "lon": 103.6},
+    {"name": "Hambantota Port (Sri Lanka)", "type": "navy", "lat": 6.1, "lon": 81.1},
+    {"name": "Qingdao Naval HQ (North Fleet)", "type": "navy", "lat": 36.0, "lon": 120.3},
+    {"name": "Zhanjiang Naval HQ (South Fleet)", "type": "navy", "lat": 21.2, "lon": 110.3}
+  ],
+  "pakistan_bases": [
+    {"name": "Sargodha Air Base (Nuclear)", "type": "air", "lat": 32.0, "lon": 72.6},
+    {"name": "Kamra Air Base (AWACs)", "type": "air", "lat": 33.8, "lon": 72.4},
+    {"name": "Masroor Air Base", "type": "air", "lat": 24.9, "lon": 66.9},
+    {"name": "Karachi Naval Dockyard", "type": "navy", "lat": 24.8, "lon": 66.9},
+    {"name": "Gwadar Port (CPEC)", "type": "navy", "lat": 25.1, "lon": 62.3},
+    {"name": "Rawalpindi GHQ", "type": "army", "lat": 33.6, "lon": 73.0}
+  ],
+  "us_bases": [
+    {"name": "Diego Garcia", "type": "navy", "lat": -7.3, "lon": 72.4},
+    {"name": "NSA Bahrain (5th Fleet)", "type": "navy", "lat": 26.2, "lon": 50.5},
+    {"name": "Al Udeid (Qatar)", "type": "air", "lat": 25.1, "lon": 51.3},
+    {"name": "Al Dhafra (UAE)", "type": "air", "lat": 24.2, "lon": 54.5},
+    {"name": "Camp Lemonnier (Djibouti)", "type": "navy", "lat": 11.5, "lon": 43.2},
+    {"name": "Yokosuka (7th Fleet)", "type": "navy", "lat": 35.3, "lon": 139.6},
+    {"name": "Guam (Andersen AFB)", "type": "air", "lat": 13.5, "lon": 144.9},
+    {"name": "Ramstein (Germany)", "type": "air", "lat": 49.4, "lon": 7.6},
+    {"name": "Incirlik (Turkey)", "type": "air", "lat": 37.0, "lon": 35.4},
+    {"name": "Rota (Spain)", "type": "navy", "lat": 36.6, "lon": -6.3},
+    {"name": "Naples (6th Fleet)", "type": "navy", "lat": 40.8, "lon": 14.2},
+    {"name": "Sigonella (Sicily)", "type": "air", "lat": 37.4, "lon": 14.9},
+    {"name": "Thule (Greenland)", "type": "air", "lat": 76.5, "lon": -68.7},
+    {"name": "Pearl Harbor (Pacific Fleet)", "type": "navy", "lat": 21.3, "lon": -157.9},
+    {"name": "Norfolk (2nd Fleet)", "type": "navy", "lat": 36.9, "lon": -76.3},
+    {"name": "San Diego (3rd Fleet)", "type": "navy", "lat": 32.7, "lon": -117.2},
+    {"name": "Kadena (Okinawa)", "type": "air", "lat": 26.3, "lon": 127.7},
+    {"name": "Camp Humphreys (Korea)", "type": "army", "lat": 36.9, "lon": 127.0},
+    {"name": "Pine Gap (Australia - SIGINT)", "type": "army", "lat": -23.8, "lon": 133.7}
+  ],
+  "russian_bases": [
+    {"name": "Sevastopol (Black Sea Fleet)", "type": "navy", "lat": 44.6, "lon": 33.5},
+    {"name": "Tartus (Syria)", "type": "navy", "lat": 34.9, "lon": 35.8},
+    {"name": "Kaliningrad", "type": "navy", "lat": 54.7, "lon": 20.5},
+    {"name": "Murmansk (Northern Fleet)", "type": "navy", "lat": 68.9, "lon": 33.0},
+    {"name": "Vladivostok (Pacific Fleet)", "type": "navy", "lat": 43.1, "lon": 131.9},
+    {"name": "Hmeimim Air Base (Syria)", "type": "air", "lat": 35.4, "lon": 35.9},
+    {"name": "Engels-2 (Strategic Bombers)", "type": "air", "lat": 51.5, "lon": 46.2},
+    {"name": "Khamis Mushait (Sudan)", "type": "navy", "lat": 19.2, "lon": 37.2},
+    {"name": "Cam Ranh Bay (Vietnam - logistics)", "type": "navy", "lat": 11.9, "lon": 109.2}
+  ],
+  "nato_bases": [
+    {"name": "Faslane (UK - Nuclear Sub)", "type": "navy", "lat": 56.1, "lon": -4.8},
+    {"name": "Toulon (France - Carrier)", "type": "navy", "lat": 43.1, "lon": 5.9},
+    {"name": "Brest (France - Nuclear Sub)", "type": "navy", "lat": 48.4, "lon": -4.5},
+    {"name": "RAF Lakenheath (UK - USAF)", "type": "air", "lat": 52.4, "lon": 0.5},
+    {"name": "Aviano (Italy - USAF)", "type": "air", "lat": 46.0, "lon": 12.6},
+    {"name": "Rygge (Norway)", "type": "air", "lat": 59.4, "lon": 10.8},
+    {"name": "Amari (Estonia)", "type": "air", "lat": 59.2, "lon": 24.2},
+    {"name": "Redzikowo (Poland - Aegis)", "type": "army", "lat": 54.4, "lon": 17.1}
+  ],
+  "missile_systems": [
+    {"name": "BrahMos", "origin": [28.6, 77.2], "range_km": 800, "color": "#3b82f6"},
+    {"name": "Agni-V", "origin": [20.5, 78.9], "range_km": 5000, "color": "#ef4444"},
+    {"name": "S-400 Punjab", "origin": [30.3, 76.8], "range_km": 400, "color": "#22c55e"},
+    {"name": "S-400 Rajasthan", "origin": [26.9, 70.9], "range_km": 400, "color": "#22c55e"},
+    {"name": "DF-26 (China)", "origin": [40.0, 100.0], "range_km": 4000, "color": "#ef4444"},
+    {"name": "Shaheen-III (Pakistan)", "origin": [33.6, 73.0], "range_km": 2750, "color": "#f59e0b"},
+    {"name": "S-400 Kaliningrad (Russia)", "origin": [54.7, 20.5], "range_km": 400, "color": "#a855f7"},
+    {"name": "Iskander (Kaliningrad)", "origin": [54.7, 20.5], "range_km": 500, "color": "#a855f7"},
+    {"name": "Hwasong-17 (North Korea)", "origin": [39.0, 125.7], "range_km": 15000, "color": "#ef4444"}
+  ],
+  "nuclear_sites": [
+    {"name": "Bhabha Atomic Research Centre", "lat": 19.0, "lon": 72.9, "country": "india"},
+    {"name": "Tarapur Nuclear Plant", "lat": 19.8, "lon": 72.6, "country": "india"},
+    {"name": "Kahuta Research Labs", "lat": 33.6, "lon": 73.4, "country": "pakistan"},
+    {"name": "Khushab Reactor", "lat": 32.0, "lon": 72.2, "country": "pakistan"},
+    {"name": "Natanz Enrichment", "lat": 33.7, "lon": 51.7, "country": "iran"},
+    {"name": "Fordow Enrichment", "lat": 34.9, "lon": 51.6, "country": "iran"},
+    {"name": "Dimona Reactor", "lat": 31.0, "lon": 35.1, "country": "israel"},
+    {"name": "Yongbyon Complex", "lat": 39.8, "lon": 125.7, "country": "north_korea"},
+    {"name": "Punggye-ri Test Site", "lat": 41.3, "lon": 129.1, "country": "north_korea"},
+    {"name": "Lop Nur Test Site (China)", "lat": 41.5, "lon": 88.3, "country": "china"},
+    {"name": "Sarov (Russia - Design)", "lat": 54.9, "lon": 43.3, "country": "russia"},
+    {"name": "Sellafield (UK)", "lat": 54.4, "lon": -3.5, "country": "uk"},
+    {"name": "La Hague (France)", "lat": 49.7, "lon": -1.9, "country": "france"}
+  ],
+  "active_conflicts": [
+    {"name": "Ukraine-Russia War", "lat": 48.5, "lon": 35.0, "severity": "high", "since": "2022"},
+    {"name": "Israel-Iran-Gaza Conflict", "lat": 31.5, "lon": 34.5, "severity": "critical", "since": "2023"},
+    {"name": "Yemen / Houthi (Red Sea)", "lat": 15.5, "lon": 44.2, "severity": "high", "since": "2015"},
+    {"name": "Sudan Civil War", "lat": 15.5, "lon": 32.5, "severity": "high", "since": "2023"},
+    {"name": "Myanmar Civil War", "lat": 19.7, "lon": 96.0, "severity": "medium", "since": "2021"},
+    {"name": "Sahel Insurgency", "lat": 14.0, "lon": 2.0, "severity": "medium", "since": "2012"},
+    {"name": "DR Congo (M23)", "lat": -1.5, "lon": 29.0, "severity": "medium", "since": "2022"},
+    {"name": "Somalia / Al-Shabaab", "lat": 5.1, "lon": 46.1, "severity": "medium", "since": "2006"},
+    {"name": "Syria (Ongoing)", "lat": 35.0, "lon": 38.0, "severity": "low", "since": "2011"},
+    {"name": "Naxal Insurgency (India)", "lat": 20.5, "lon": 82.0, "severity": "low", "since": "1967"},
+    {"name": "Balochistan Insurgency", "lat": 28.0, "lon": 65.0, "severity": "low", "since": "2004"}
+  ],
+  "border_disputes": [
+    {"name": "Line of Actual Control (LAC)", "points": [[32.5,76.8],[33.5,77.5],[34.5,78.0],[35.2,78.5],[35.5,79.5]], "color": "#ef4444"},
+    {"name": "Line of Control (LOC)", "points": [[32.5,74.6],[33.0,74.3],[33.5,74.0],[34.0,74.5],[34.5,75.6]], "color": "#f59e0b"},
+    {"name": "Aksai Chin (Disputed)", "bounds": [[34,78],[36,81]], "color": "#ef4444", "type": "area"},
+    {"name": "Arunachal Pradesh (Claimed by China)", "bounds": [[26.5,91],[29,97]], "color": "#ef4444", "type": "area"},
+    {"name": "PoK / Azad Kashmir", "bounds": [[33,73],[35,76]], "color": "#f59e0b", "type": "area"},
+    {"name": "Siachen Glacier", "bounds": [[35.0,76.5],[35.6,77.5]], "color": "#a855f7", "type": "area"},
+    {"name": "Crimea (Russia-occupied)", "bounds": [[44.3,32.5],[46.2,36.6]], "color": "#ef4444", "type": "area"},
+    {"name": "Donbas (Russia-occupied)", "bounds": [[47.5,37.0],[49.5,40.0]], "color": "#ef4444", "type": "area"},
+    {"name": "Golan Heights (Israel-occupied)", "bounds": [[32.7,35.7],[33.3,35.9]], "color": "#f59e0b", "type": "area"},
+    {"name": "West Bank", "bounds": [[31.3,34.9],[32.5,35.6]], "color": "#f59e0b", "type": "area"},
+    {"name": "Taiwan Strait", "points": [[22.0,119.5],[25.0,119.5],[25.5,120.5]], "color": "#ef4444"},
+    {"name": "Senkaku/Diaoyu (Japan-China)", "bounds": [[25.5,123.3],[26.0,124.0]], "color": "#f59e0b", "type": "area"},
+    {"name": "Kuril Islands (Russia-Japan)", "bounds": [[43.5,145.5],[45.5,149.0]], "color": "#f59e0b", "type": "area"}
+  ],
+  "chokepoints": [
+    {"name": "Strait of Hormuz", "lat": 26.5, "lon": 56.2, "daily_flow": "21M bbl/day"},
+    {"name": "Bab el-Mandeb", "lat": 12.5, "lon": 43.3, "daily_flow": "6.2M bbl/day"},
+    {"name": "Strait of Malacca", "lat": 2.5, "lon": 101.5, "daily_flow": "16M bbl/day"},
+    {"name": "Suez Canal", "lat": 30.4, "lon": 32.3, "daily_flow": "5.5M bbl/day"},
+    {"name": "Panama Canal", "lat": 9.0, "lon": -79.7, "daily_flow": "0.9M bbl/day"},
+    {"name": "Turkish Straits (Bosphorus)", "lat": 41.1, "lon": 29.0, "daily_flow": "2.4M bbl/day"},
+    {"name": "Danish Straits", "lat": 55.6, "lon": 12.6, "daily_flow": "3.2M bbl/day"},
+    {"name": "GIUK Gap", "lat": 63.0, "lon": -15.0, "daily_flow": "NATO naval chokepoint"},
+    {"name": "Lombok Strait", "lat": -8.3, "lon": 115.7, "daily_flow": "Alt to Malacca"},
+    {"name": "Cape of Good Hope", "lat": -34.3, "lon": 18.4, "daily_flow": "Oil reroute option"}
+  ],
+  "pipelines": [
+    {"name": "IPI Pipeline (Proposed)", "points": [[27.0,52.0],[25.5,57.0],[25.1,62.3],[24.8,66.9],[23.0,72.0]], "color": "#f59e0b", "status": "proposed"},
+    {"name": "TAPI Pipeline (Proposed)", "points": [[36.0,61.0],[35.5,62.0],[33.6,73.0],[30.3,69.3],[23.0,72.0]], "color": "#3b82f6", "status": "proposed"},
+    {"name": "Nord Stream (Damaged)", "points": [[59.9,30.3],[54.5,13.0]], "color": "#ef4444", "status": "damaged"},
+    {"name": "TurkStream", "points": [[44.5,37.8],[41.2,28.9],[42.0,24.0]], "color": "#a855f7", "status": "active"},
+    {"name": "BTC Pipeline", "points": [[40.4,49.8],[41.7,44.8],[36.8,35.0],[36.7,34.6]], "color": "#22c55e", "status": "active"},
+    {"name": "CPEC Route", "points": [[39.5,76.0],[35.9,74.3],[33.6,73.0],[30.2,71.4],[25.1,62.3]], "color": "#ef4444", "status": "active"}
+  ],
+  "belt_and_road": [
+    {"name": "China-Pakistan Economic Corridor", "points": [[39.5,76.0],[35.9,74.3],[25.1,62.3]], "color": "#ef4444"},
+    {"name": "Maritime Silk Road", "points": [[22.3,114.1],[10.8,106.6],[1.3,103.8],[6.1,81.1],[11.5,43.1],[30.4,32.3],[36.8,10.2]], "color": "#ef4444"},
+    {"name": "Overland Silk Road", "points": [[34.7,113.6],[39.0,72.0],[41.3,69.2],[42.0,59.6],[51.1,71.4],[55.7,37.6]], "color": "#ef4444"}
+  ],
+  "submarine_cables": [
+    {"name": "SEA-ME-WE 6", "points": [[1.3,103.8],[6.9,79.8],[12.5,43.3],[30.4,32.3],[36.0,0.0]], "color": "#06b6d4"},
+    {"name": "India-ME Cable", "points": [[19.0,72.8],[22.0,60.0],[26.2,50.5]], "color": "#06b6d4"},
+    {"name": "PEACE Cable (China-Pakistan-Europe)", "points": [[22.3,114.1],[24.8,66.9],[12.5,43.3],[30.4,32.3],[38.0,24.0],[45.0,-1.0]], "color": "#06b6d4"},
+    {"name": "Transatlantic TAT-14", "points": [[52.0,1.0],[41.0,-72.0]], "color": "#06b6d4"},
+    {"name": "Trans-Pacific (SJC)", "points": [[35.6,139.7],[22.3,114.1],[1.3,103.8]], "color": "#06b6d4"}
+  ],
+  "alliances": {
+    "quad": {"members": ["india", "united states", "japan", "australia"], "color": "#3b82f6"},
+    "brics": {"members": ["india", "china", "russia", "brazil", "south africa", "iran", "uae", "egypt", "ethiopia"], "color": "#f59e0b"},
+    "sco": {"members": ["india", "china", "russia", "pakistan", "iran"], "color": "#a855f7"},
+    "nato": {"members": ["united states", "united kingdom", "france", "germany", "turkey", "canada"], "color": "#22c55e"},
+    "aukus": {"members": ["australia", "united kingdom", "united states"], "color": "#06b6d4"},
+    "five_eyes": {"members": ["united states", "united kingdom", "canada", "australia"], "color": "#ef4444"}
+  },
+  "eez_india": {
+    "description": "India Exclusive Economic Zone",
+    "approximate_bounds": [[5.0,72.0],[5.0,82.0],[8.0,78.0],[10.0,80.0],[15.0,82.5],[20.0,73.0],[22.0,69.0],[23.5,68.0]]
+  },
+  "sanctions_zones": [
+    {"name": "North Korea (Full sanctions)", "lat": 40.0, "lon": 127.0, "level": "full"},
+    {"name": "Iran (US sanctions)", "lat": 32.4, "lon": 53.6, "level": "partial"},
+    {"name": "Russia (Western sanctions)", "lat": 55.7, "lon": 37.6, "level": "partial"},
+    {"name": "Syria (US/EU sanctions)", "lat": 35.0, "lon": 38.0, "level": "partial"},
+    {"name": "Cuba (US sanctions)", "lat": 22.0, "lon": -79.5, "level": "full"},
+    {"name": "Venezuela (US sanctions)", "lat": 8.0, "lon": -66.0, "level": "partial"}
+  ]
+}

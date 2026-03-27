@@ -4,364 +4,476 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-    .story-expand { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
-    .story-expand.open { max-height: 800px; }
-    .zone-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
-    #map-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.95); }
-    #world-map { width: 100%; height: 100%; }
+    #world-map { position: fixed; top: 44px; left: 0; right: 0; bottom: 0; z-index: 1; }
     .leaflet-container { background: #0a0a0f; }
-    .zone-rect { fill: none; stroke-width: 1; opacity: 0.4; }
+    #sidebar { position: fixed; top: 44px; right: 0; width: 380px; bottom: 0; z-index: 10; overflow-y: auto; background: rgba(10,10,15,0.92); backdrop-filter: blur(12px); border-left: 1px solid rgba(255,255,255,0.05); }
+    #sidebar.collapsed { width: 0; border: none; }
+    #sidebar.collapsed .sb-content { display: none; }
+    #sidebar.collapsed #sb-toggle { left: -32px; }
+    .sb-panel { background: rgba(18,18,26,0.8); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 8px; }
+    .story-expand { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .story-expand.open { max-height: 600px; }
+    .map-popup { font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; }
+    .map-popup b { color: #e5e7eb; }
+    .map-popup .tag { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 9px; margin-right: 4px; }
+    .leaflet-popup-content-wrapper { background: rgba(18,18,26,0.95); color: #9ca3af; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; }
+    .leaflet-popup-tip { background: rgba(18,18,26,0.95); }
+    @media (max-width: 768px) {
+        #sidebar { width: 100%; top: auto; bottom: 0; height: 45vh; border-left: none; border-top: 1px solid rgba(255,255,255,0.05); }
+        #sidebar.collapsed { height: 40px; }
+    }
+    .ticker-bar { position: fixed; bottom: 0; left: 0; right: 380px; z-index: 10; background: rgba(10,10,15,0.9); backdrop-filter: blur(8px); border-top: 1px solid rgba(255,255,255,0.05); transition: right 0.2s ease; }
+    @media (max-width: 768px) { .ticker-bar { right: 0; bottom: 45vh; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- ASK BAR -->
-<div class="mb-4">
-    <div class="bg-surface-2 border border-white/10 rounded-lg focus-within:border-white/20 transition-colors">
-        <div class="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5">
-            <span class="font-mono text-[10px] text-white/20 flex-shrink-0">ASK</span>
-            <input id="query-input" type="text" placeholder="How is India exposed to the Iran conflict?"
-                   class="flex-1 bg-transparent text-[13px] sm:text-sm text-white/80 placeholder-white/15 outline-none"
-                   onkeydown="if(event.key==='Enter')askNarad()">
-            <button onclick="askNarad()" class="font-mono text-[10px] text-white/25 hover:text-white/50 px-1.5 py-0.5 rounded hover:bg-white/5">&#x23CE;</button>
-        </div>
-    </div>
-    <div id="query-result" class="hidden mt-2 bg-surface-2 border border-white/5 rounded-lg p-4">
-        <div id="query-loading" class="hidden text-center py-3"><span class="w-2 h-2 rounded-full bg-white/30 pulse-dot inline-block"></span><span class="font-mono text-[10px] text-white/20 ml-2">ANALYZING...</span></div>
-        <div id="query-answer"></div>
-    </div>
-</div>
-
-{% if briefing and stories %}
+<!-- Override main padding since map is full-screen -->
+<style> main { padding: 0 !important; max-width: none !important; } </style>
 
 <!-- ============================================================ -->
-<!-- ROW 1: SITUATION STATUS + MARKET TICKER                       -->
+<!-- FULL-SCREEN MAP                                               -->
 <!-- ============================================================ -->
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-    <!-- Situation -->
-    <div class="bg-surface-2 border border-white/5 rounded-lg px-4 py-3">
-        {% set critical_count = stories | selectattr('severity', 'equalto', 'critical') | list | length %}
-        {% set developing_count = stories | selectattr('severity', 'equalto', 'developing') | list | length %}
-        <div class="flex items-center gap-2">
-            <span class="zone-dot {% if critical_count > 0 %}bg-red-500 pulse-dot{% else %}bg-amber-400{% endif %}"></span>
-            <span class="font-mono text-[11px] sm:text-xs tracking-widest {% if critical_count > 0 %}text-red-400{% else %}text-amber-400{% endif %}">
-                {% if critical_count >= 2 %}CRITICAL{% elif critical_count >= 1 %}ELEVATED{% else %}ACTIVE{% endif %}
-            </span>
-        </div>
-        <p class="font-mono text-[10px] text-white/20 mt-1">{{ critical_count }} critical · {{ developing_count }} developing · {{ stories | length }} stories</p>
-        <p class="font-mono text-[10px] text-white/15 mt-0.5">{{ (briefing.generated_at|ist).strftime('%d %b %H:%M IST') }}</p>
-    </div>
+<div id="world-map"></div>
 
-    <!-- Market ticker (compact) -->
-    <div class="bg-surface-2 border border-white/5 rounded-lg px-4 py-3">
-        <div class="grid grid-cols-3 gap-x-4 gap-y-1" id="market-compact">
-            <span class="font-mono text-[9px] text-white/15">Loading...</span>
-        </div>
+<!-- ============================================================ -->
+<!-- MARKET TICKER BAR (bottom)                                    -->
+<!-- ============================================================ -->
+<div class="ticker-bar px-4 py-1.5">
+    <div class="flex items-center gap-4" id="market-bar">
+        <span class="font-mono text-[9px] text-white/15">Markets loading...</span>
     </div>
 </div>
 
-<!-- Priority warning -->
-{% if strategic_warning %}
-<div class="bg-red-500/5 border border-red-500/15 rounded-lg px-4 py-2.5 mb-3">
-    <div class="flex items-center gap-2 mb-1">
-        <span class="w-1.5 h-1.5 rounded-full bg-red-500 pulse-dot"></span>
-        <span class="font-mono text-[9px] text-red-400 uppercase tracking-widest">Warning</span>
-    </div>
-    <p class="text-[12px] text-red-200/60 leading-relaxed">{{ strategic_warning }}</p>
-</div>
-{% endif %}
-
 <!-- ============================================================ -->
-<!-- ROW 2: STRATEGIC ASSESSMENT (one line)                        -->
+<!-- SIDEBAR                                                        -->
 <!-- ============================================================ -->
-{% if outlook and outlook.india_strategic_assessment %}
-<div class="bg-surface-2 border border-white/5 rounded-lg px-4 py-3 mb-3">
-    <p class="text-[12px] sm:text-[13px] text-white/60 leading-relaxed">{{ outlook.india_strategic_assessment }}</p>
-</div>
-{% endif %}
+<!-- Sidebar toggle -->
+<button id="sb-toggle"
+        style="position:fixed; top:50%; right:380px; width:22px; height:50px; transform:translateY(-50%); z-index:50; background:rgba(18,18,26,0.95); border:1px solid rgba(255,255,255,0.1); border-right:none; border-radius:6px 0 0 6px; color:rgba(255,255,255,0.4); font-size:12px; cursor:pointer;">◀</button>
 
-<!-- ============================================================ -->
-<!-- ROW 3: STORIES (left) + SIGNALS/GEOINT (right)                -->
-<!-- ============================================================ -->
-<div class="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-3">
+<div id="sidebar">
+    <div class="sb-content p-3">
 
-    <!-- LEFT: Priority stories (3 cols) -->
-    <div class="lg:col-span-3 space-y-2">
-        {% for story in stories %}
-        <div class="bg-surface-2 border rounded-lg overflow-hidden
-            {% if story.severity == 'critical' %}border-red-500/20{% elif story.severity == 'developing' %}border-amber-500/10{% else %}border-white/5{% endif %}">
-
-            <!-- Compact header — always visible -->
-            <div class="px-3.5 sm:px-4 py-2.5 sm:py-3 cursor-pointer" onclick="toggleStory(this)">
-                <div class="flex items-start gap-2">
-                    <span class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0
-                        {% if story.severity == 'critical' %}bg-red-500 pulse-dot
-                        {% elif story.severity == 'developing' %}bg-amber-400
-                        {% else %}bg-white/20{% endif %}"></span>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-0.5">
-                            <span class="font-mono text-[9px] uppercase tracking-widest
-                                {% if story.severity == 'critical' %}text-red-400{% elif story.severity == 'developing' %}text-amber-400{% else %}text-white/25{% endif %}">{{ story.severity }}</span>
-                            {% if story.category %}
-                            <span class="font-mono text-[9px] text-white/15 uppercase">{{ story.category }}</span>
-                            {% endif %}
-                            <span class="font-mono text-[9px] text-white/10 ml-auto">{{ story.source_count }}src</span>
-                        </div>
-                        <h3 class="text-[13px] sm:text-[14px] font-medium text-white/80 leading-snug">{{ story.headline }}</h3>
-                        {% if story.india_impact %}
-                        <p class="text-[11px] sm:text-[12px] text-orange-300/40 mt-0.5 line-clamp-2">India: {{ story.india_impact }}</p>
-                        {% endif %}
-                    </div>
-                    <span class="font-mono text-[10px] text-white/15 mt-1 flex-shrink-0 expand-arrow">&#x25B8;</span>
-                </div>
+        <!-- ASK -->
+        <div class="sb-panel px-3 py-2">
+            <div class="flex items-center gap-2">
+                <span class="font-mono text-[9px] text-white/20">ASK</span>
+                <input id="query-input" type="text" placeholder="Ask about any region or event..."
+                       class="flex-1 bg-transparent text-[12px] text-white/70 placeholder-white/15 outline-none"
+                       onkeydown="if(event.key==='Enter')askNarad()">
             </div>
+            <div id="query-result" class="hidden mt-2 pt-2 border-t border-white/5">
+                <div id="query-loading" class="hidden text-center py-2"><span class="w-2 h-2 rounded-full bg-white/30 pulse-dot inline-block"></span></div>
+                <div id="query-answer"></div>
+            </div>
+        </div>
 
-            <!-- Expandable detail -->
+        {% if briefing and stories %}
+        <!-- Situation -->
+        <div class="sb-panel px-3 py-2">
+            {% set critical_count = stories | selectattr('severity', 'equalto', 'critical') | list | length %}
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full {% if critical_count > 0 %}bg-red-500 pulse-dot{% else %}bg-amber-400{% endif %}"></span>
+                    <span class="font-mono text-[10px] {% if critical_count > 0 %}text-red-400{% else %}text-amber-400{% endif %}">
+                        {% if critical_count >= 2 %}CRITICAL{% elif critical_count >= 1 %}ELEVATED{% else %}ACTIVE{% endif %}
+                    </span>
+                </div>
+                <span class="font-mono text-[9px] text-white/15">{{ stories | length }} stories · {{ (briefing.generated_at|ist).strftime('%H:%M IST') }}</span>
+            </div>
+        </div>
+
+        <!-- Strategic warning -->
+        {% if strategic_warning %}
+        <div class="sb-panel px-3 py-2 border-red-500/15">
+            <p class="font-mono text-[9px] text-red-400 mb-1">⚠ WARNING</p>
+            <p class="text-[11px] text-red-200/50 leading-relaxed">{{ strategic_warning }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Assessment -->
+        {% if outlook and outlook.india_strategic_assessment %}
+        <div class="sb-panel px-3 py-2">
+            <p class="text-[11px] text-white/45 leading-relaxed">{{ outlook.india_strategic_assessment }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Stories -->
+        {% for story in stories %}
+        <div class="sb-panel overflow-hidden">
+            <div class="h-0.5 {% if story.severity == 'critical' %}bg-red-500{% elif story.severity == 'developing' %}bg-amber-500{% else %}bg-white/10{% endif %}"></div>
+            <div class="px-3 py-2 cursor-pointer" onclick="toggleStory(this)">
+                <div class="flex items-center gap-1.5 mb-0.5">
+                    <span class="w-1.5 h-1.5 rounded-full {% if story.severity == 'critical' %}bg-red-500 pulse-dot{% elif story.severity == 'developing' %}bg-amber-400{% else %}bg-white/20{% endif %}"></span>
+                    <span class="font-mono text-[9px] {% if story.severity == 'critical' %}text-red-400{% elif story.severity == 'developing' %}text-amber-400{% else %}text-white/25{% endif %}">{{ story.severity }}</span>
+                    <span class="font-mono text-[9px] text-white/10 ml-auto">{{ story.source_count }}src &#x25BE;</span>
+                </div>
+                <h3 class="text-[12px] font-medium text-white/70 leading-snug">{{ story.headline }}</h3>
+            </div>
             <div class="story-expand">
-                <div class="px-3.5 sm:px-4 pb-3.5 sm:pb-4 pt-0">
-                    <p class="text-[12px] sm:text-[13px] text-white/45 leading-relaxed mb-3">{{ story.summary }}</p>
-
+                <div class="px-3 pb-2">
+                    <p class="text-[11px] text-white/35 leading-relaxed mb-2">{{ story.summary }}</p>
                     {% if story.india_impact %}
-                    <div class="bg-orange-500/5 border-l-2 border-orange-500/30 px-3 py-2 rounded-r mb-3">
-                        <p class="font-mono text-[9px] text-orange-400/60 uppercase tracking-widest mb-0.5">India</p>
-                        <p class="text-[12px] text-orange-200/50 leading-relaxed">{{ story.india_impact }}</p>
+                    <div class="bg-orange-500/5 border-l-2 border-orange-500/30 px-2 py-1.5 rounded-r mb-2">
+                        <p class="text-[10px] text-orange-200/45 leading-relaxed">{{ story.india_impact }}</p>
                     </div>
                     {% endif %}
-
-                    {% if story.scenarios %}
-                    <div class="space-y-1 mb-3">
-                        {% if story.scenarios.likely %}
-                        <div class="flex items-start gap-1.5">
-                            <span class="font-mono text-[9px] text-blue-400 mt-0.5 w-2">L</span>
-                            <p class="text-[11px] text-white/30 leading-relaxed">{{ story.scenarios.likely }}</p>
-                        </div>
-                        {% endif %}
-                        {% if story.scenarios.worst_case %}
-                        <div class="flex items-start gap-1.5">
-                            <span class="font-mono text-[9px] text-red-400 mt-0.5 w-2">W</span>
-                            <p class="text-[11px] text-white/30 leading-relaxed">{{ story.scenarios.worst_case }}</p>
-                        </div>
-                        {% endif %}
-                        {% if story.scenarios.historical_parallel %}
-                        <div class="flex items-start gap-1.5">
-                            <span class="font-mono text-[9px] text-purple-400 mt-0.5 w-2">H</span>
-                            <p class="text-[11px] text-white/30 leading-relaxed">{{ story.scenarios.historical_parallel }}</p>
-                        </div>
-                        {% endif %}
-                    </div>
+                    {% if story.scenarios and story.scenarios.likely %}
+                    <p class="text-[10px] text-white/20 leading-relaxed"><span class="text-blue-400">L</span> {{ story.scenarios.likely }}</p>
                     {% endif %}
-
-                    {% if story.watch_signals %}
-                    <div class="flex flex-wrap gap-1 mb-2">
-                        {% for signal in story.watch_signals %}
-                        <span class="font-mono text-[9px] px-1.5 py-0.5 bg-white/5 text-white/25 rounded">&#x25C9; {{ signal }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-
                     {% if story.event_id %}
-                    <a href="/events/{{ story.event_id }}" class="font-mono text-[10px] text-white/15 hover:text-white/30">TIMELINE &rarr;</a>
+                    <a href="/events/{{ story.event_id }}" class="font-mono text-[9px] text-white/15 hover:text-white/30 mt-1 inline-block">TIMELINE →</a>
                     {% endif %}
                 </div>
             </div>
         </div>
         {% endfor %}
-    </div>
 
-    <!-- RIGHT: Signals + GEOINT + Zones (2 cols) -->
-    <div class="lg:col-span-2 space-y-2">
-
-        <!-- Signals -->
-        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
-            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">Signals</p>
-            <div id="signals-panel" class="space-y-1.5">
-                {% if outlook and outlook.next_24h %}
-                <div class="flex items-start gap-2">
-                    <span class="font-mono text-[9px] text-amber-400 mt-0.5">24h</span>
-                    <p class="text-[11px] text-white/35 leading-relaxed">{{ outlook.next_24h }}</p>
-                </div>
-                {% endif %}
-                {% if outlook and outlook.wildcard %}
-                <div class="flex items-start gap-2">
-                    <span class="font-mono text-[9px] text-red-400 mt-0.5">&#x26A0;</span>
-                    <p class="text-[11px] text-white/25 leading-relaxed">{{ outlook.wildcard }}</p>
-                </div>
-                {% endif %}
-            </div>
+        <!-- Connections -->
+        {% if connections %}
+        <div class="sb-panel px-3 py-2">
+            <p class="font-mono text-[9px] text-white/15 mb-1">LINKS</p>
+            {% for conn in connections %}
+            <p class="text-[10px] text-white/25 leading-relaxed">→ {{ conn.narrative }}</p>
+            {% endfor %}
         </div>
+        {% endif %}
 
-        <!-- GEOINT + Zones combined -->
-        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
-            <div class="flex items-center justify-between mb-2">
-                <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest">Satellite + Aircraft</p>
-                <button onclick="document.getElementById('map-overlay').classList.toggle('hidden')" class="font-mono text-[9px] text-blue-400/50 hover:text-blue-400/80 transition-colors">MAP &#x25B8;</button>
-            </div>
-            <div id="geoint-compact" class="space-y-0">
-                <span class="font-mono text-[9px] text-white/15 pulse-dot">Scanning 8 zones...</span>
-            </div>
-        </div>
-
-        <!-- Threat Matrix -->
+        <!-- Threat matrix -->
         {% if threat_matrix %}
-        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
-            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-0.5">India Bilateral Relations</p>
-            <p class="font-mono text-[8px] text-white/10 mb-2"><span class="text-green-400/50">Green</span> = cooperation signals, <span class="text-red-400/50">Red</span> = tension signals — derived from news event analysis</p>
+        <div class="sb-panel px-3 py-2">
+            <p class="font-mono text-[9px] text-white/15 mb-1.5">INDIA BILATERAL</p>
             {% for entry in threat_matrix %}
-            <div class="flex items-center gap-2 py-1 {% if not loop.last %}border-b border-white/5{% endif %}">
-                <span class="text-[11px] text-white/40 w-14 truncate">{{ entry.country }}</span>
-                <div class="flex-1 flex gap-0.5 h-1.5 rounded-full overflow-hidden bg-surface-1">
+            <div class="flex items-center gap-2 py-0.5">
+                <span class="text-[10px] text-white/35 w-12 truncate">{{ entry.country }}</span>
+                <div class="flex-1 flex gap-0.5 h-1 rounded-full overflow-hidden bg-white/5">
                     <div class="bg-green-500/50 rounded-full" style="width: {{ entry.cooperation * 100 }}%"></div>
                     <div class="flex-1"></div>
                     <div class="bg-red-500/50 rounded-full" style="width: {{ entry.tension * 100 }}%"></div>
                 </div>
-                <span class="font-mono text-[8px] w-10 text-right
-                    {% if entry.trend == 'warming' %}text-green-400/40
-                    {% elif entry.trend == 'cooling' %}text-red-400/40
-                    {% elif entry.trend == 'volatile' %}text-amber-400/40
-                    {% else %}text-white/15{% endif %}">{{ entry.trend }}</span>
+                <span class="font-mono text-[8px] {% if entry.trend == 'warming' %}text-green-400/40{% elif entry.trend == 'cooling' %}text-red-400/40{% else %}text-white/15{% endif %} w-8 text-right">{{ entry.trend }}</span>
             </div>
             {% endfor %}
         </div>
         {% endif %}
 
-        <!-- Relationship shifts -->
-        {% if relationship_insights %}
-        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
-            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">Shifts</p>
-            {% for ri in relationship_insights %}
-            <div class="flex items-start gap-1.5 {% if not loop.last %}mb-1.5{% endif %}">
-                <span class="w-1 h-1 rounded-full mt-1 flex-shrink-0
-                    {% if ri.direction == 'warming' %}bg-green-400{% elif ri.direction == 'cooling' %}bg-red-400{% elif ri.direction == 'volatile' %}bg-amber-400{% else %}bg-purple-400{% endif %}"></span>
-                <div>
-                    <span class="font-mono text-[8px] text-white/25">{{ ri.countries | join(' ↔ ') }}</span>
-                    <p class="text-[10px] text-white/25 leading-relaxed">{{ ri.insight }}</p>
-                </div>
-            </div>
-            {% endfor %}
+        {% else %}
+        <!-- Loading state -->
+        <div class="sb-panel px-3 py-6 text-center">
+            <span class="w-2 h-2 rounded-full bg-white/30 pulse-dot inline-block mb-2"></span>
+            <p class="font-mono text-[10px] text-white/20">INITIALIZING</p>
+            <p class="text-[10px] text-white/10 mt-1">{{ total_articles }} articles · {{ total_events }} events</p>
         </div>
-        {% endif %}
-
-        <!-- Entities -->
-        {% if top_entities %}
-        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
-            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">Entities</p>
-            <div class="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                {% for ent in top_entities %}
-                <div class="flex items-center gap-1 py-0.5">
-                    <span class="w-1 h-1 rounded-full flex-shrink-0
-                        {% if ent.type == 'country' %}bg-blue-400{% elif ent.type == 'person' %}bg-purple-400{% elif ent.type == 'organization' %}bg-green-400{% else %}bg-white/20{% endif %}"></span>
-                    <span class="font-mono text-[9px] text-white/30 truncate">{{ ent.name }}</span>
-                    <span class="font-mono text-[8px] text-white/10 ml-auto">{{ ent.mentions }}</span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- 7-Day -->
-        {% if outlook and outlook.next_week %}
-        <div class="bg-surface-2 border border-white/5 rounded-lg px-3.5 py-3">
-            <p class="font-mono text-[9px] text-white/20 uppercase tracking-widest mb-2">7-Day</p>
-            <p class="text-[10px] text-white/25 leading-relaxed">{{ outlook.next_week }}</p>
-        </div>
+        <script>setTimeout(() => location.reload(), 15000);</script>
         {% endif %}
     </div>
 </div>
-
-<!-- ============================================================ -->
-<!-- ROW 4: CONNECTIONS (compact)                                   -->
-<!-- ============================================================ -->
-{% if connections %}
-<div class="bg-surface-2 border border-white/5 rounded-lg px-4 py-2.5">
-    <div class="flex items-center gap-4 overflow-x-auto scroll-hide">
-        <span class="font-mono text-[9px] text-white/20 uppercase tracking-widest flex-shrink-0">Links</span>
-        {% for conn in connections %}
-        <p class="text-[11px] text-white/30 flex-shrink-0">{{ conn.narrative }}</p>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
-
-<!-- Footer -->
-<div class="text-center py-3 font-mono text-[9px] text-white/10">
-    {{ (briefing.generated_at|ist).strftime('%H:%M IST') }} · REFRESH ~30M · {{ total_events }} EVENTS
-</div>
-
-<!-- ============================================================ -->
-<!-- MAP OVERLAY                                                    -->
-<!-- ============================================================ -->
-<div id="map-overlay" class="hidden">
-    <div class="absolute top-3 right-4 z-[1000] flex items-center gap-3">
-        <span class="font-mono text-[10px] text-white/30">
-            🔥 heat signatures · ✈️ aircraft · ▭ monitored zones
-        </span>
-        <button onclick="document.getElementById('map-overlay').classList.add('hidden')"
-                class="font-mono text-sm text-white/50 hover:text-white bg-black/50 w-8 h-8 rounded-full flex items-center justify-center">✕</button>
-    </div>
-    <div id="world-map"></div>
-</div>
-
-{% else %}
-<!-- LOADING STATE -->
-<div class="text-center py-16 px-4">
-    <div class="inline-flex items-center justify-center w-12 h-12 border border-white/10 rounded-full mb-4">
-        <span class="w-2 h-2 rounded-full bg-white/30 pulse-dot"></span>
-    </div>
-    <h2 class="font-mono text-sm text-white/50 tracking-wider mb-2">INITIALIZING</h2>
-    <p class="text-white/20 text-sm max-w-sm mx-auto mb-5">Analyzing sources, clustering events, running scenario models.</p>
-    <div class="space-y-1.5 text-left max-w-xs mx-auto">
-        <div class="flex items-center gap-2 font-mono text-[11px]">
-            <span class="w-1.5 h-1.5 rounded-full {% if total_articles > 0 %}bg-green-500{% else %}bg-white/20 pulse-dot{% endif %}"></span>
-            <span class="text-white/25">INGEST</span>
-            <span class="text-white/15 ml-auto">{% if total_articles > 0 %}{{ total_articles }}{% else %}...{% endif %}</span>
-        </div>
-        <div class="flex items-center gap-2 font-mono text-[11px]">
-            <span class="w-1.5 h-1.5 rounded-full {% if total_events > 0 %}bg-green-500{% else %}bg-white/20 pulse-dot{% endif %}"></span>
-            <span class="text-white/25">CLUSTER</span>
-            <span class="text-white/15 ml-auto">{% if total_events > 0 %}{{ total_events }}{% else %}...{% endif %}</span>
-        </div>
-        <div class="flex items-center gap-2 font-mono text-[11px]">
-            <span class="w-1.5 h-1.5 rounded-full {% if events_summarized > 0 %}bg-green-500{% else %}bg-white/20 pulse-dot{% endif %}"></span>
-            <span class="text-white/25">ANALYZE</span>
-            <span class="text-white/15 ml-auto">{% if events_summarized > 0 %}{{ events_summarized }}{% else %}...{% endif %}</span>
-        </div>
-        <div class="flex items-center gap-2 font-mono text-[11px]">
-            <span class="w-1.5 h-1.5 rounded-full bg-white/20 pulse-dot"></span>
-            <span class="text-white/25">SCENARIO</span>
-            <span class="text-white/15 ml-auto">...</span>
-        </div>
-    </div>
-    <script>
-    let refreshTimer = setTimeout(() => location.reload(), 15000);
-    const qi = document.getElementById('query-input');
-    if (qi) { qi.addEventListener('focus', () => clearTimeout(refreshTimer)); qi.addEventListener('input', () => clearTimeout(refreshTimer)); }
-    </script>
-</div>
-{% endif %}
 
 <!-- ============================================================ -->
 <!-- SCRIPTS                                                        -->
 <!-- ============================================================ -->
 <script>
-function toggleStory(el) {
-    const expand = el.nextElementSibling;
-    const arrow = el.querySelector('.expand-arrow');
-    expand.classList.toggle('open');
-    arrow.innerHTML = expand.classList.contains('open') ? '&#x25BE;' : '&#x25B8;';
+// Geocoding: regions, bodies of water, cities, and countries
+const GEO_COORDS = {
+    // Regions & waterways (check these FIRST — more specific)
+    'south china sea': [13.5, 115.0], 'strait of hormuz': [26.5, 56.2], 'hormuz': [26.5, 56.2],
+    'gulf of aden': [13.0, 47.0], 'indian ocean': [5.0, 72.5], 'arabian sea': [15.0, 65.0],
+    'west asia': [31.5, 50.0], 'middle east': [31.5, 50.0], 'persian gulf': [27.0, 51.0],
+    'ladakh': [34.0, 78.0], 'lac': [34.0, 78.0], 'arunachal': [28.0, 93.5],
+    'line of control': [34.0, 74.5], 'kashmir': [34.0, 75.0], 'galwan': [34.7, 78.2],
+    'south asia': [23.0, 80.0], 'southeast asia': [10.0, 106.0], 'east asia': [35.0, 120.0],
+    'central asia': [42.0, 65.0], 'arctic': [75.0, 40.0], 'taiwan strait': [24.5, 119.5],
+    'red sea': [20.0, 38.5], 'suez': [30.0, 32.5], 'bab el mandeb': [12.5, 43.3],
+    'malacca': [3.0, 101.0], 'andaman': [12.0, 92.7],
+    // Key cities
+    'new delhi': [28.6, 77.2], 'delhi': [28.6, 77.2], 'mumbai': [19.0, 72.8],
+    'chennai': [13.0, 80.2], 'beijing': [39.9, 116.4], 'islamabad': [33.7, 73.0],
+    'tehran': [35.7, 51.4], 'tel aviv': [32.0, 34.8], 'jerusalem': [31.7, 35.2],
+    'moscow': [55.7, 37.6], 'kyiv': [50.4, 30.5], 'washington': [38.9, -77.0],
+    'brussels': [50.8, 4.3], 'london': [51.5, -0.1], 'paris': [48.8, 2.3],
+    'tokyo': [35.6, 139.7], 'canberra': [-35.2, 149.1], 'riyadh': [24.7, 46.7],
+    'kabul': [34.5, 69.1], 'dhaka': [23.8, 90.4], 'colombo': [6.9, 79.8],
+    'kathmandu': [27.7, 85.3], 'taipei': [25.0, 121.5], 'hanoi': [21.0, 105.8],
+    // Countries
+    'india': [20.5, 78.9], 'china': [35.8, 104.1], 'pakistan': [30.3, 69.3],
+    'iran': [32.4, 53.6], 'israel': [31.0, 34.8], 'united states': [38.0, -97.0],
+    'russia': [55.7, 37.6], 'ukraine': [48.3, 31.1],
+    'france': [46.2, 2.2], 'united kingdom': [55.3, -3.4],
+    'germany': [51.1, 10.4], 'japan': [36.2, 138.2], 'australia': [-25.2, 133.7],
+    'saudi arabia': [23.8, 45.0], 'uae': [23.4, 53.8], 'turkey': [38.9, 35.2],
+    'iraq': [33.2, 43.6], 'syria': [34.8, 38.9], 'afghanistan': [33.9, 67.7],
+    'bangladesh': [23.6, 90.3], 'sri lanka': [7.8, 80.7], 'nepal': [28.3, 84.1],
+    'myanmar': [19.7, 96.1], 'thailand': [15.8, 100.9], 'south korea': [35.9, 127.7],
+    'north korea': [40.3, 127.5], 'taiwan': [23.6, 120.9], 'philippines': [12.8, 121.7],
+    'indonesia': [-0.7, 113.9], 'malaysia': [4.2, 101.9], 'singapore': [1.3, 103.8],
+    'egypt': [26.8, 30.8], 'south africa': [-30.5, 22.9], 'brazil': [-14.2, -51.9],
+    'canada': [56.1, -106.3], 'kenya': [-0.02, 37.9], 'nigeria': [9.0, 8.6],
+    'ethiopia': [9.1, 40.4], 'denmark': [56.2, 9.5], 'greenland': [71.7, -42.6],
+};
+
+// Zones
+const ZONES = {
+    strait_of_hormuz: {bounds: [[24,54],[28,58]], color: '#f59e0b', name: 'Strait of Hormuz'},
+    india_pakistan_border: {bounds: [[28,66],[36,78]], color: '#ef4444', name: 'India-Pakistan Border'},
+    india_china_ladakh: {bounds: [[32,76],[36,80]], color: '#ef4444', name: 'Ladakh/LAC'},
+    india_china_east: {bounds: [[26,90],[30,97]], color: '#ef4444', name: 'Arunachal/Eastern LAC'},
+    middle_east: {bounds: [[25,44],[38,56]], color: '#f59e0b', name: 'Middle East'},
+    gulf_of_aden: {bounds: [[10,42],[16,52]], color: '#3b82f6', name: 'Gulf of Aden'},
+    south_china_sea: {bounds: [[5,108],[22,122]], color: '#a855f7', name: 'South China Sea'},
+    indian_ocean: {bounds: [[-5,60],[15,85]], color: '#3b82f6', name: 'Indian Ocean'},
+};
+
+// Init map
+const map = L.map('world-map', { center: [25, 45], zoom: 3, minZoom: 2, maxZoom: 18, maxBounds: [[-85, -180], [85, 180]], maxBoundsViscosity: 1.0, zoomControl: false, attributionControl: false, zoomDelta: 0.5, zoomSnap: 0.5, wheelDebounceTime: 100, wheelPxPerZoomLevel: 120 });
+L.control.zoom({ position: 'topleft' }).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18 }).addTo(map);
+
+// Icon factories (no emojis)
+function baseIcon(color, size) {
+    return L.divIcon({className:'', iconSize:[size,size], iconAnchor:[size/2,size/2],
+        html:`<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid ${color}88;box-shadow:0 0 6px ${color}44;"></div>`});
+}
+function diamondIcon(color, size) {
+    return L.divIcon({className:'', iconSize:[size,size], iconAnchor:[size/2,size/2],
+        html:`<div style="width:${size*0.7}px;height:${size*0.7}px;background:${color};border:1px solid ${color}88;transform:rotate(45deg);margin:${size*0.15}px;"></div>`});
+}
+function triIcon(color, size) {
+    return L.divIcon({className:'', iconSize:[size,size], iconAnchor:[size/2,size/2],
+        html:`<div style="width:0;height:0;border-left:${size/2}px solid transparent;border-right:${size/2}px solid transparent;border-bottom:${size}px solid ${color};opacity:0.8;"></div>`});
 }
 
-// Market data (compact grid)
+// Draw zone rectangles
+for (const [id, z] of Object.entries(ZONES)) {
+    L.rectangle(z.bounds, {color: z.color, weight: 1, fillOpacity: 0.04, opacity: 0.25, dashArray: '4'}).addTo(map)
+        .bindPopup(`<div class="map-popup"><b>${z.name}</b><br><span style="color:#6b7280">Monitored zone</span></div>`);
+}
+
+// Load all static map data
+fetch('/static/map_data.json').then(r=>r.json()).then(md => {
+    const layers = {};
+
+    // Military bases
+    const baseColors = {indian:'#22c55e', chinese:'#ef4444', pakistan:'#f59e0b', us:'#3b82f6'};
+    const typeLabels = {navy:'NAVAL', air:'AIR', army:'ARMY'};
+    [{data: md.indian_bases, side:'indian', label:'India'}, {data:md.chinese_bases, side:'chinese', label:'China'}, {data:md.pakistan_bases, side:'pakistan', label:'Pakistan'}, {data:md.us_bases, side:'us', label:'US'}].forEach(({data, side, label}) => {
+        (data||[]).forEach(b => {
+            const c = baseColors[side];
+            const icon = b.type === 'navy' ? diamondIcon(c, 10) : b.type === 'air' ? triIcon(c, 10) : baseIcon(c, 7);
+            L.marker([b.lat, b.lon], {icon}).addTo(map)
+                .bindPopup(`<div class="map-popup"><span class="tag" style="background:${c}22;color:${c}">${label}</span> <span class="tag" style="background:rgba(255,255,255,0.05);color:#9ca3af">${typeLabels[b.type]||b.type}</span><br><b>${b.name}</b></div>`);
+        });
+    });
+
+    // Nuclear sites
+    (md.nuclear_sites||[]).forEach(n => {
+        const c = n.country === 'india' ? '#22c55e' : n.country === 'pakistan' ? '#f59e0b' : n.country === 'iran' ? '#ef4444' : '#a855f7';
+        L.circleMarker([n.lat, n.lon], {radius: 5, color: '#ef4444', fillColor: '#ef444466', fillOpacity: 0.6, weight: 1}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:#ef444422;color:#ef4444">NUCLEAR</span><br><b>${n.name}</b></div>`);
+    });
+
+    // Missile range circles (only visible when zoomed out, non-interactive)
+    const missileLayer = L.layerGroup();
+    (md.missile_systems||[]).forEach(m => {
+        const circle = L.circle(m.origin, {radius: m.range_km * 1000, color: m.color, fillColor: m.color, fillOpacity: 0.02, weight: 1, opacity: 0.15, dashArray: '8,4', interactive: false});
+        // Label at the edge
+        const labelLat = m.origin[0]; const labelLon = m.origin[1] + (m.range_km / 111);
+        const label = L.marker([labelLat, labelLon], {interactive: false, icon: L.divIcon({className:'', html:`<span style="font-family:monospace;font-size:9px;color:${m.color}88;white-space:nowrap">${m.name} ${m.range_km}km</span>`, iconSize:[80,12]})});
+        missileLayer.addLayer(circle);
+        missileLayer.addLayer(label);
+    });
+    missileLayer.addTo(map);
+    // Show/hide based on zoom
+    map.on('zoomend', () => {
+        if (map.getZoom() > 5) { map.removeLayer(missileLayer); }
+        else if (!map.hasLayer(missileLayer)) { map.addLayer(missileLayer); }
+    });
+
+    // Border disputes
+    (md.border_disputes||[]).forEach(bd => {
+        if (bd.type === 'area') {
+            L.rectangle(bd.bounds, {color: bd.color, weight: 1, fillOpacity: 0.08, opacity: 0.4, dashArray: '3,3'}).addTo(map)
+                .bindPopup(`<div class="map-popup"><span class="tag" style="background:${bd.color}22;color:${bd.color}">DISPUTED</span><br><b>${bd.name}</b></div>`);
+        } else if (bd.points) {
+            L.polyline(bd.points, {color: bd.color, weight: 2, opacity: 0.5, dashArray: '6,4'}).addTo(map)
+                .bindPopup(`<div class="map-popup"><b>${bd.name}</b></div>`);
+        }
+    });
+
+    // Chokepoints
+    (md.chokepoints||[]).forEach(cp => {
+        L.circleMarker([cp.lat, cp.lon], {radius: 6, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.4, weight: 2}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:#f59e0b22;color:#f59e0b">CHOKEPOINT</span><br><b>${cp.name}</b><br>Flow: ${cp.daily_flow}</div>`);
+    });
+
+    // Pipelines
+    (md.pipelines||[]).forEach(p => {
+        L.polyline(p.points, {color: p.color, weight: 2, opacity: 0.25, dashArray: '8,6'}).addTo(map)
+            .bindPopup(`<div class="map-popup"><b>${p.name}</b><br>Status: ${p.status}</div>`);
+    });
+
+    // Submarine cables
+    (md.submarine_cables||[]).forEach(c => {
+        L.polyline(c.points, {color: c.color, weight: 1, opacity: 0.15, dashArray: '2,4'}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:#06b6d422;color:#06b6d4">CABLE</span><br><b>${c.name}</b></div>`);
+    });
+
+    // India EEZ
+    if (md.eez_india) {
+        L.polygon(md.eez_india.approximate_bounds, {color: '#22c55e', weight: 1, fillOpacity: 0.02, opacity: 0.15, dashArray: '4,4'}).addTo(map)
+            .bindPopup('<div class="map-popup"><b>India EEZ</b><br>Exclusive Economic Zone</div>');
+    }
+
+    // Russian bases
+    (md.russian_bases||[]).forEach(b => {
+        const icon = b.type === 'navy' ? diamondIcon('#a855f7', 9) : b.type === 'air' ? triIcon('#a855f7', 9) : baseIcon('#a855f7', 6);
+        L.marker([b.lat, b.lon], {icon}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:#a855f722;color:#a855f7">Russia</span> <span class="tag" style="background:rgba(255,255,255,0.05);color:#9ca3af">${(b.type||'').toUpperCase()}</span><br><b>${b.name}</b></div>`);
+    });
+
+    // NATO bases
+    (md.nato_bases||[]).forEach(b => {
+        const icon = b.type === 'navy' ? diamondIcon('#22c55e', 8) : b.type === 'air' ? triIcon('#22c55e', 8) : baseIcon('#22c55e', 6);
+        L.marker([b.lat, b.lon], {icon}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:#22c55e22;color:#22c55e">NATO</span> <span class="tag" style="background:rgba(255,255,255,0.05);color:#9ca3af">${(b.type||'').toUpperCase()}</span><br><b>${b.name}</b></div>`);
+    });
+
+    // Active conflicts
+    (md.active_conflicts||[]).forEach(c => {
+        const color = c.severity === 'critical' ? '#ef4444' : c.severity === 'high' ? '#f59e0b' : '#6b7280';
+        const r = c.severity === 'critical' ? 80000 : c.severity === 'high' ? 50000 : 30000;
+        L.circle([c.lat, c.lon], {radius: r, color, fillColor: color, fillOpacity: 0.1, weight: 1, opacity: 0.4}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:${color}22;color:${color}">CONFLICT</span><br><b>${c.name}</b><br>Since: ${c.since}</div>`);
+    });
+
+    // Sanctions zones
+    (md.sanctions_zones||[]).forEach(s => {
+        const color = s.level === 'full' ? '#ef4444' : '#f59e0b';
+        L.circleMarker([s.lat, s.lon], {radius: 12, color, fillColor: color, fillOpacity: 0.08, weight: 1, opacity: 0.3, dashArray: '3,3'}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:${color}22;color:${color}">SANCTIONS</span><br><b>${s.name}</b><br>Level: ${s.level}</div>`);
+    });
+
+    // Belt & Road
+    (md.belt_and_road||[]).forEach(br => {
+        L.polyline(br.points, {color: br.color, weight: 2, opacity: 0.15, dashArray: '10,6'}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:#ef444422;color:#ef4444">BRI</span><br><b>${br.name}</b></div>`);
+    });
+});
+
+// Plot events on map
+{% if briefing and stories %}
+{% for story in stories %}
+(function(){
+    const headline = "{{ story.headline | e | lower }}";
+    const summary = "{{ (story.summary or '') | e | lower }}";
+    const category = "{{ story.category or '' }}";
+    const severity = "{{ story.severity }}";
+    const sevColor = {critical:'#ef4444', developing:'#f59e0b', monitoring:'#6b7280'}[severity] || '#6b7280';
+    const allText = headline + ' ' + summary;
+
+    // Match longest location names first (regions before countries)
+    const sortedGeo = Object.entries(GEO_COORDS).sort((a,b) => b[0].length - a[0].length);
+    let coords = null;
+    for (const [place, c] of sortedGeo) {
+        if (allText.includes(place)) { coords = [...c]; break; }
+    }
+    // If nothing matched, skip this event (don't place randomly)
+    if (!coords) return;
+
+    // Small jitter to prevent exact overlap (±0.3 degrees = ~30km)
+    coords[0] += (Math.random()-0.5)*0.6;
+    coords[1] += (Math.random()-0.5)*0.6;
+
+    const marker = L.circleMarker(coords, {
+        radius: severity === 'critical' ? 10 : severity === 'developing' ? 7 : 5,
+        color: sevColor, fillColor: sevColor, fillOpacity: 0.5, weight: 2, opacity: 0.8
+    }).addTo(map);
+
+    const sevTag = `<span class="tag" style="background:${sevColor}22;color:${sevColor}">` + severity.toUpperCase() + '</span>';
+    const catTag = category ? `<span class="tag" style="background:rgba(255,255,255,0.05);color:#9ca3af">${category}</span>` : '';
+    let popup = `<div class="map-popup">${sevTag}${catTag}<br><b>{{ story.headline | e }}</b><br><br>{{ (story.summary or '') | e | truncate(150) }}`;
+    {% if story.india_impact %}
+    popup += `<br><br><span style="color:#fb923c">India:</span> {{ (story.india_impact or '') | e | truncate(120) }}`;
+    {% endif %}
+    {% if story.event_id %}
+    popup += `<br><br><a href="/events/{{ story.event_id }}" style="color:#60a5fa">View timeline →</a>`;
+    {% endif %}
+    popup += '</div>';
+    marker.bindPopup(popup, {maxWidth: 300});
+})();
+{% endfor %}
+{% endif %}
+
+// GEOINT data
+fetch('/api/intel/geoint').then(r=>r.json()).then(data=>{
+    const allSignals = [...(data.thermal||[]), ...(data.aircraft||[])];
+    const activeZones = new Set(allSignals.map(s => s.data?.zone));
+
+    // Pre-compute zone centers
+    const ZONE_CENTERS = {};
+    for (const [id, z] of Object.entries(ZONES)) {
+        ZONE_CENTERS[id] = [(z.bounds[0][0]+z.bounds[1][0])/2, (z.bounds[0][1]+z.bounds[1][1])/2];
+    }
+
+    // Thermal anomalies
+    for (const t of (data.thermal||[])) {
+        const d = t.data || {};
+        const center = ZONE_CENTERS[d.zone];
+        if (!center) continue;
+        const radius = Math.min(Math.max(d.fire_count * 300, 5000), 150000);
+        const color = {critical:'#ef4444',high:'#f59e0b',medium:'#3b82f6',low:'#6b7280'}[t.severity]||'#6b7280';
+
+        L.circle(center, {radius, color, fillColor: color, fillOpacity: 0.15, weight: 1}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:${color}22;color:${color}">THERMAL</span><br><b>${d.zone_name}</b><br>${d.fire_count} heat signatures<br>Peak: ${d.max_frp||0} FRP | Night: ${d.night_count||0}<br><br>${d.interpretation||''}</div>`, {maxWidth: 280});
+    }
+
+    // Aircraft
+    for (const a of (data.aircraft||[])) {
+        const d = a.data || {};
+        const center = ZONE_CENTERS[d.zone];
+        if (!center) continue;
+
+        let details = '';
+        if (d.details) {
+            details = '<br><br><table style="font-size:9px;width:100%"><tr style="color:#6b7280"><td>Call</td><td>Country</td><td>Alt</td></tr>';
+            for (const ac of d.details.slice(0,5)) {
+                details += `<tr><td>${ac.callsign}</td><td>${ac.country}</td><td>${ac.altitude_m}m</td></tr>`;
+            }
+            details += '</table>';
+        }
+
+        L.marker(center, {icon: triIcon('#60a5fa', 12)}).addTo(map)
+            .bindPopup(`<div class="map-popup"><span class="tag" style="background:#3b82f622;color:#3b82f6">AIRCRAFT</span><br><b>${d.zone_name}</b><br>${d.military_count} military-pattern / ${d.total_aircraft} total${details}</div>`, {maxWidth: 280});
+    }
+
+    // Update zone rectangles for active zones
+    map.eachLayer(l => {
+        if (l instanceof L.Rectangle) {
+            // Find matching zone
+            for (const [id, z] of Object.entries(ZONES)) {
+                const b = l.getBounds();
+                if (Math.abs(b.getSouth() - z.bounds[0][0]) < 0.1) {
+                    if (activeZones.has(id)) {
+                        l.setStyle({fillOpacity: 0.15, opacity: 0.6, dashArray: null});
+                    }
+                    break;
+                }
+            }
+        }
+    });
+});
+
+// Market ticker
 fetch('/api/intel/market').then(r=>r.json()).then(data=>{
-    const el = document.getElementById('market-compact');
-    if (!Object.keys(data).length) { el.innerHTML='<span class="font-mono text-[9px] text-white/15">Loading...</span>'; return; }
-    const order = ['BZ=F','CL=F','GC=F','INR=X','^NSEI','ZW=F'];
-    const short = {'BZ=F':'BRENT','CL=F':'WTI','GC=F':'GOLD','INR=X':'USD/INR','^NSEI':'NIFTY','ZW=F':'WHEAT'};
+    const el = document.getElementById('market-bar');
+    const order = ['BZ=F','CL=F','GC=F','INR=X','^NSEI','ZW=F','NG=F'];
+    const short = {'BZ=F':'BRENT','CL=F':'WTI','GC=F':'GOLD','INR=X':'USD/INR','^NSEI':'NIFTY','ZW=F':'WHEAT','NG=F':'NATGAS'};
     let html = '';
     for (const sym of order) {
         const d = data[sym]; if(!d) continue;
         const c = d.change_1d >= 0 ? 'text-green-400/70' : 'text-red-400/70';
         const a = d.change_1d >= 0 ? '▲' : '▼';
-        html += `<div class="flex items-baseline justify-between">
+        html += `<div class="flex items-center gap-1.5 flex-shrink-0">
             <span class="font-mono text-[9px] text-white/20">${short[sym]}</span>
             <span class="font-mono text-[10px] text-white/50">${d.price.toLocaleString(undefined,{maximumFractionDigits:1})}</span>
             <span class="font-mono text-[9px] ${c}">${a}${Math.abs(d.change_1d).toFixed(1)}%</span>
@@ -370,172 +482,22 @@ fetch('/api/intel/market').then(r=>r.json()).then(data=>{
     el.innerHTML = html;
 });
 
-// GEOINT
-let geointData = null;
-fetch('/api/intel/geoint').then(r=>r.json()).then(data=>{
-    geointData = data;
-    const el = document.getElementById('geoint-compact');
-    const allSignals = [...(data.thermal||[]), ...(data.aircraft||[])];
-    const zoneNames = data.zone_names || {};
-    const activeZones = new Set(allSignals.map(s => s.data?.zone));
-
-    if (allSignals.length === 0) {
-        // Show zones as green
-        let html = '';
-        for (const [k,v] of Object.entries(zoneNames)) {
-            html += `<div class="flex items-center gap-1.5 py-1 border-b border-white/5">
-                <span class="w-1.5 h-1.5 rounded-full bg-green-500/40"></span>
-                <span class="font-mono text-[10px] text-white/25">${v}</span>
-                <span class="font-mono text-[9px] text-green-400/30 ml-auto">CLEAR</span>
-            </div>`;
-        }
-        el.innerHTML = html;
-        return;
-    }
-
-    let html = '';
-
-    // Active signals (expandable)
-    for (let i = 0; i < allSignals.length && i < 6; i++) {
-        const s = allSignals[i];
-        const d = s.data || {};
-        const icon = d.type === 'firms' ? '🔥' : '✈️';
-        const c = {critical:'text-red-400',high:'text-amber-400',medium:'text-blue-400',low:'text-white/30'}[s.severity]||'text-white/30';
-
-        html += `<div class="border-b border-white/5">
-            <div class="flex items-center gap-1.5 py-1.5 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
-                <span class="text-[11px]">${icon}</span>
-                <span class="font-mono text-[10px] ${c} flex-1">${s.title}</span>
-                <span class="font-mono text-[9px] text-white/15">&#x25BE;</span>
-            </div>
-            <div class="hidden pb-2 pl-6">
-                <p class="font-mono text-[9px] text-white/25 leading-relaxed mb-1">${d.interpretation || ''}</p>`;
-
-        if (d.type === 'firms') {
-            html += `<div class="grid grid-cols-3 gap-2 font-mono text-[9px]">
-                <div><span class="text-white/15">Detections</span><br><span class="text-white/40">${d.fire_count || 0}</span></div>
-                <div><span class="text-white/15">Peak intensity</span><br><span class="text-white/40">${d.max_frp || 0} FRP</span></div>
-                <div><span class="text-white/15">Nighttime</span><br><span class="text-white/40">${d.night_count || 0}</span></div>
-            </div>`;
-        } else if (d.type === 'adsb') {
-            html += `<div class="font-mono text-[9px] text-white/15 mb-1">${d.total_aircraft || 0} total aircraft, ${d.military_count || 0} military-pattern</div>`;
-            if (d.details && d.details.length) {
-                html += `<table class="w-full font-mono text-[9px]">
-                    <tr class="text-white/15"><td>Callsign</td><td>Country</td><td>Alt</td><td>Speed</td></tr>`;
-                for (const ac of d.details.slice(0,5)) {
-                    html += `<tr class="text-white/30"><td>${ac.callsign||'?'}</td><td>${ac.country||'?'}</td><td>${ac.altitude_m||0}m</td><td>${ac.speed_ms||0}m/s</td></tr>`;
-                }
-                html += `</table>`;
-            }
-        }
-        html += `</div></div>`;
-    }
-
-    // Quiet zones
-    for (const [k,v] of Object.entries(zoneNames)) {
-        if (!activeZones.has(k)) {
-            html += `<div class="flex items-center gap-1.5 py-1 border-b border-white/5">
-                <span class="w-1.5 h-1.5 rounded-full bg-green-500/40"></span>
-                <span class="font-mono text-[10px] text-white/20">${v}</span>
-                <span class="font-mono text-[9px] text-green-400/30 ml-auto">clear</span>
-            </div>`;
-        }
-    }
-
-    el.innerHTML = html;
-
-    // Also populate map if open
-    if (typeof initMap === 'function') initMap(data);
+// Sidebar toggle
+document.getElementById('sb-toggle').addEventListener('click', function() {
+    const sb = document.getElementById('sidebar');
+    sb.classList.toggle('collapsed');
+    const isCollapsed = sb.classList.contains('collapsed');
+    this.textContent = isCollapsed ? '▶' : '◀';
+    this.style.right = isCollapsed ? '0px' : '380px';
+    const ticker = document.querySelector('.ticker-bar');
+    if (ticker) ticker.style.right = isCollapsed ? '0' : '380px';
+    setTimeout(() => map.invalidateSize(), 300);
 });
 
-// Map
-let map = null;
-function initMap(data) {
-    if (map) return; // already initialized
-    const el = document.getElementById('world-map');
-    if (!el) return;
-
-    map = L.map('world-map', {
-        center: [25, 65],
-        zoom: 4,
-        zoomControl: true,
-        attributionControl: false,
-    });
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 18,
-    }).addTo(map);
-
-    // Monitored zones as rectangles
-    const zones = {
-        strait_of_hormuz: {bounds: [[24,54],[28,58]], color: '#f59e0b'},
-        india_pakistan_border: {bounds: [[28,66],[36,78]], color: '#ef4444'},
-        india_china_ladakh: {bounds: [[32,76],[36,80]], color: '#ef4444'},
-        india_china_east: {bounds: [[26,90],[30,97]], color: '#ef4444'},
-        middle_east: {bounds: [[25,44],[38,56]], color: '#f59e0b'},
-        gulf_of_aden: {bounds: [[10,42],[16,52]], color: '#3b82f6'},
-        south_china_sea: {bounds: [[5,108],[22,122]], color: '#a855f7'},
-        indian_ocean: {bounds: [[-5,60],[15,85]], color: '#3b82f6'},
-    };
-
-    const zoneNames = data.zone_names || {};
-    const activeZones = new Set([...(data.thermal||[]), ...(data.aircraft||[])].map(s => s.data?.zone));
-
-    for (const [id, z] of Object.entries(zones)) {
-        const active = activeZones.has(id);
-        const color = active ? z.color : '#ffffff';
-        const opacity = active ? 0.3 : 0.05;
-        const rect = L.rectangle(z.bounds, {color: color, weight: 1, fillOpacity: opacity, opacity: 0.5}).addTo(map);
-        rect.bindPopup(`<div style="font-family:monospace;font-size:11px;"><b>${zoneNames[id]||id}</b><br>${active ? '⚠ Activity detected' : '✓ Clear'}</div>`);
-    }
-
-    // Thermal anomalies
-    for (const t of (data.thermal||[])) {
-        const d = t.data || {};
-        const center = [(d.bbox?.[0]||0 + d.bbox?.[2]||0)/2, (d.bbox?.[1]||0 + d.bbox?.[3]||0)/2];
-        const radius = Math.min(d.fire_count * 500, 100000);
-        const sevColor = {critical:'#ef4444',high:'#f59e0b',medium:'#3b82f6',low:'#6b7280'}[t.severity]||'#6b7280';
-        L.circle(center, {radius: radius, color: sevColor, fillColor: sevColor, fillOpacity: 0.3, weight: 1}).addTo(map)
-            .bindPopup(`<div style="font-family:monospace;font-size:11px;"><b>🔥 ${d.zone_name||''}</b><br>${d.fire_count} detections<br>Peak: ${d.max_frp||0} FRP<br>${d.interpretation||''}</div>`);
-    }
-
-    // Aircraft
-    for (const a of (data.aircraft||[])) {
-        const d = a.data || {};
-        const center = [(d.bbox?.[0]||25), (d.bbox?.[1]||70)];
-        // Get center of the zone
-        const zone = zones[d.zone];
-        if (zone) {
-            const c = [(zone.bounds[0][0]+zone.bounds[1][0])/2, (zone.bounds[0][1]+zone.bounds[1][1])/2];
-            let details = '';
-            if (d.details) {
-                for (const ac of d.details.slice(0,5)) {
-                    details += `${ac.callsign} (${ac.country}) ${ac.altitude_m}m<br>`;
-                }
-            }
-            L.marker(c, {icon: L.divIcon({className:'',html:`<span style="font-size:18px">✈️</span>`,iconSize:[20,20]})}).addTo(map)
-                .bindPopup(`<div style="font-family:monospace;font-size:11px;"><b>✈️ ${d.zone_name||''}</b><br>${d.military_count} military-pattern<br>${d.total_aircraft} total<br><br>${details}</div>`);
-        }
-    }
-
-    // India marker
-    L.marker([28.6, 77.2], {icon: L.divIcon({className:'',html:`<span style="font-size:14px">🇮🇳</span>`,iconSize:[16,16]})}).addTo(map)
-        .bindPopup('<div style="font-family:monospace;font-size:11px;"><b>New Delhi</b></div>');
-
-    // Invalidate size after overlay shows
-    setTimeout(() => map.invalidateSize(), 100);
-}
-
-// Initialize map when overlay becomes visible
-const mapOverlay = document.getElementById('map-overlay');
-if (mapOverlay) {
-    const observer = new MutationObserver(() => {
-        if (!mapOverlay.classList.contains('hidden')) {
-            if (geointData) initMap(geointData);
-            setTimeout(() => map && map.invalidateSize(), 200);
-        }
-    });
-    observer.observe(mapOverlay, {attributes: true, attributeFilter: ['class']});
+// Story expand/collapse
+function toggleStory(el) {
+    const expand = el.nextElementSibling;
+    expand.classList.toggle('open');
 }
 
 // Query
@@ -543,7 +505,6 @@ async function askNarad() {
     const input = document.getElementById('query-input');
     const q = input.value.trim();
     if (!q) return;
-    if (typeof refreshTimer !== 'undefined') clearTimeout(refreshTimer);
     const result = document.getElementById('query-result');
     const loading = document.getElementById('query-loading');
     const answer = document.getElementById('query-answer');
@@ -554,22 +515,15 @@ async function askNarad() {
         const resp = await fetch('/api/intel/query', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
         const data = await resp.json();
         loading.classList.add('hidden');
-        let html = `<p class="text-[13px] text-white/60 leading-relaxed mb-2">${data.answer||'No answer.'}</p>`;
-        if (data.evidence?.length) {
-            html += `<div class="space-y-1 mb-2">`;
-            for (const e of data.evidence.slice(0,3)) html += `<div class="font-mono text-[9px] text-white/20">↳ ${e.reference||''}</div>`;
-            html += `</div>`;
-        }
+        let html = `<p class="text-[11px] text-white/50 leading-relaxed mb-1">${data.answer||'No answer.'}</p>`;
         if (data.follow_up_questions?.length) {
-            html += `<div class="flex flex-wrap gap-1 mt-2">`;
             for (const fq of data.follow_up_questions.slice(0,2))
-                html += `<button onclick="document.getElementById('query-input').value='${fq.replace(/'/g,"\\'")}';askNarad()" class="font-mono text-[9px] text-blue-400/30 hover:text-blue-400/60 px-1.5 py-0.5 bg-white/5 rounded">${fq}</button>`;
-            html += `</div>`;
+                html += `<button onclick="document.getElementById('query-input').value='${fq.replace(/'/g,"\\'")}';askNarad()" class="block font-mono text-[9px] text-blue-400/30 hover:text-blue-400/60 mt-1">${fq}</button>`;
         }
         answer.innerHTML = html;
     } catch(e) {
         loading.classList.add('hidden');
-        answer.innerHTML = `<p class="text-[11px] text-red-400/50">Failed: ${e.message}</p>`;
+        answer.innerHTML = `<p class="text-[10px] text-red-400/50">Failed</p>`;
     }
 }
 </script>
