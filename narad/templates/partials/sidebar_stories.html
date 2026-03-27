@@ -1,0 +1,82 @@
+<!-- sidebar_stories.html — Situation status, warning, assessment, stories, connections -->
+
+<!-- Situation -->
+<div class="sb-panel px-3 py-2">
+    {% set critical_count = stories | selectattr('severity', 'equalto', 'critical') | list | length %}
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span
+                class="w-1.5 h-1.5 rounded-full {% if critical_count > 0 %}bg-red-500 pulse-dot{% else %}bg-amber-400{% endif %}"></span>
+            <span
+                class="font-mono text-[10px] {% if critical_count > 0 %}text-red-400{% else %}text-amber-400{% endif %}">
+                {% if critical_count >= 2 %}CRITICAL{% elif critical_count >= 1 %}ELEVATED{% else %}ACTIVE{% endif %}
+            </span>
+        </div>
+        <span class="font-mono text-[9px] text-white/15">{{ stories | length }} stories · {{
+            (briefing.generated_at|ist).strftime('%H:%M IST') }}</span>
+    </div>
+</div>
+
+<!-- Strategic warning -->
+{% if strategic_warning %}
+<div class="sb-panel px-3 py-2 border-red-500/15">
+    <p class="font-mono text-[9px] text-red-400 mb-1">WARNING</p>
+    <p class="text-[11px] text-red-200/50 leading-relaxed">{{ strategic_warning }}</p>
+</div>
+{% endif %}
+
+<!-- Assessment -->
+{% if outlook and outlook.india_strategic_assessment %}
+<div class="sb-panel px-3 py-2">
+    <p class="text-[11px] text-white/45 leading-relaxed">{{ outlook.india_strategic_assessment }}</p>
+</div>
+{% endif %}
+
+<!-- Stories -->
+{% for story in stories %}
+<div class="sb-panel overflow-hidden">
+    <div
+        class="h-0.5 {% if story.severity == 'critical' %}bg-red-500{% elif story.severity == 'developing' %}bg-amber-500{% else %}bg-white/10{% endif %}">
+    </div>
+    <div class="px-3 py-2 cursor-pointer" onclick="toggleStory(this)">
+        <div class="flex items-center gap-1.5 mb-0.5">
+            <span
+                class="w-1.5 h-1.5 rounded-full {% if story.severity == 'critical' %}bg-red-500 pulse-dot{% elif story.severity == 'developing' %}bg-amber-400{% else %}bg-white/20{% endif %}"></span>
+            <span
+                class="font-mono text-[9px] {% if story.severity == 'critical' %}text-red-400{% elif story.severity == 'developing' %}text-amber-400{% else %}text-white/25{% endif %}">{{
+                story.severity }}</span>
+            <span class="font-mono text-[9px] text-white/10 ml-auto">{{ story.source_count }}src &#x25BE;</span>
+        </div>
+        <h3 class="text-[12px] font-medium text-white/70 leading-snug">{{ story.headline }}</h3>
+    </div>
+    <div class="story-expand">
+        <div class="px-3 pb-2">
+            <p class="text-[11px] text-white/35 leading-relaxed mb-2">{{ story.summary }}</p>
+            {% if story.india_impact %}
+            <div class="bg-orange-500/5 border-l-2 border-orange-500/30 px-2 py-1.5 rounded-r mb-2">
+                <p class="text-[10px] text-orange-200/45 leading-relaxed">{{ story.india_impact }}</p>
+            </div>
+            {% endif %}
+            {% if story.scenarios and story.scenarios.likely %}
+            <p class="text-[10px] text-white/20 leading-relaxed"><span class="text-blue-400">L</span> {{
+                story.scenarios.likely }}</p>
+            {% endif %}
+            {% if story.event_id %}
+            <a href="/events/{{ story.event_id }}"
+                class="font-mono text-[9px] text-white/15 hover:text-white/30 mt-1 inline-block">TIMELINE
+                →</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Connections -->
+{% if connections %}
+<div class="sb-panel px-3 py-2">
+    <p class="font-mono text-[9px] text-white/15 mb-1">LINKS</p>
+    {% for conn in connections %}
+    <p class="text-[10px] text-white/25 leading-relaxed">→ {{ conn.narrative }}</p>
+    {% endfor %}
+</div>
+{% endif %}

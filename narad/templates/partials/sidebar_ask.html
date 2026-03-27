@@ -1,0 +1,14 @@
+<!-- sidebar_ask.html — Ask Narad query panel -->
+<div class="sb-panel px-3 py-2">
+    <div class="flex items-center gap-2">
+        <span class="font-mono text-[9px] text-white/20">ASK</span>
+        <input id="query-input" type="text" placeholder="Ask about any region or event..."
+            class="flex-1 bg-transparent text-[12px] text-white/70 placeholder-white/15 outline-none"
+            onkeydown="if(event.key==='Enter')askNarad()">
+    </div>
+    <div id="query-result" class="hidden mt-2 pt-2 border-t border-white/5">
+        <div id="query-loading" class="hidden text-center py-2"><span
+                class="w-2 h-2 rounded-full bg-white/30 pulse-dot inline-block"></span></div>
+        <div id="query-answer"></div>
+    </div>
+</div>

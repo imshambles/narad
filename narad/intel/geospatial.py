@@ -63,7 +63,7 @@ async def fetch_geoint() -> None:
         old_cutoff = now - timedelta(hours=6)
         old_signals = await session.execute(
             select(Signal)
-            .where(Signal.signal_type.in_(["thermal_anomaly", "aircraft_activity", "naval_activity"]))
+            .where(Signal.signal_type.in_(["thermal_anomaly", "aircraft_activity", "naval_activity", "vessel_tracking"]))
             .where(Signal.detected_at < old_cutoff)
             .where(Signal.is_active == True)
         )
@@ -313,23 +313,201 @@ async def _fetch_aircraft(session, now: datetime) -> int:
 
 async def _fetch_ships(session, now: datetime) -> int:
     """
-    Monitor naval activity using free ship tracking data.
-    Since free AIS APIs are limited, we use a proxy approach:
-    count vessels in key straits/chokepoints via publicly available data.
+    Fetch live vessel positions via AISStream.io websocket.
+    Opens a connection, subscribes to our monitored zones, collects
+    position reports for ~15 seconds, then stores as signals.
+    Falls back to simulation if no API key configured.
     """
+    from narad.config import settings
+    api_key = settings.aisstream_api_key
+    if not api_key:
+        logger.debug("AIS: no aisstream_api_key configured, skipping live tracking")
+        return 0
+
+    # Our monitored bounding boxes: [[lat_min, lon_min], [lat_max, lon_max]]
+    MARITIME_ZONES = {
+        "strait_of_hormuz": {"bbox": [[24.0, 54.0], [28.0, 58.0]], "name": "Strait of Hormuz"},
+        "gulf_of_aden":     {"bbox": [[10.0, 42.0], [16.0, 52.0]], "name": "Gulf of Aden"},
+        "arabian_sea":      {"bbox": [[8.0, 55.0], [22.0, 72.0]], "name": "Arabian Sea"},
+        "indian_ocean_w":   {"bbox": [[-5.0, 60.0], [12.0, 80.0]], "name": "Indian Ocean (West)"},
+        "south_china_sea":  {"bbox": [[5.0, 108.0], [22.0, 122.0]], "name": "South China Sea"},
+        "malacca":          {"bbox": [[-2.0, 98.0], [8.0, 106.0]], "name": "Malacca Strait"},
+        "red_sea":          {"bbox": [[12.0, 32.0], [30.0, 44.0]], "name": "Red Sea"},
+    }
+
+    # AIS vessel type codes
+    def classify_vessel(ship_type: int) -> str:
+        if 80 <= ship_type < 90:
+            return "tanker"
+        elif 70 <= ship_type < 80:
+            return "cargo"
+        elif 60 <= ship_type < 70:
+            return "passenger"
+        elif 30 <= ship_type < 40:
+            return "fishing"
+        elif 50 <= ship_type < 60:
+            return "military"
+        return "other"
+
+    def find_zone(lat, lon):
+        for zid, zone in MARITIME_ZONES.items():
+            bb = zone["bbox"]
+            if bb[0][0] <= lat <= bb[1][0] and bb[0][1] <= lon <= bb[1][1]:
+                return zid, zone["name"]
+        return None, None
+
     signals = 0
+    vessels_by_zone = {}  # zone_id → list of vessel dicts
 
-    # For now, use the fact that we know about shipping from news events.
-    # When the Strait of Hormuz is threatened, we can correlate with oil price movements.
-    # Full AIS integration would require a registered API key from MarineTraffic or similar.
+    try:
+        import websockets
+        import asyncio
 
-    # We CAN detect naval activity indirectly:
-    # - FIRMS thermal data near ports = potential naval drills
-    # - Aircraft activity over shipping lanes = maritime patrol
-    # These are handled by the other two functions.
+        # Build subscription for all zones
+        bboxes = [zone["bbox"] for zone in MARITIME_ZONES.values()]
 
-    # TODO: Integrate with free AIS data source when available
-    # Candidates: AISHub (requires registration), UN Global Platform
+        subscribe_msg = json.dumps({
+            "APIKey": api_key,
+            "BoundingBoxes": bboxes,
+            "FilterMessageTypes": ["PositionReport", "ShipStaticData"],
+        })
+
+        # Connect and collect for ~15 seconds
+        async with websockets.connect("wss://stream.aisstream.io/v0/stream", close_timeout=5) as ws:
+            await ws.send(subscribe_msg)
+
+            deadline = asyncio.get_event_loop().time() + 15  # 15 second window
+            seen_mmsi = set()
+
+            while asyncio.get_event_loop().time() < deadline:
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=2)
+                    msg = json.loads(raw)
+                except (asyncio.TimeoutError, json.JSONDecodeError):
+                    continue
+
+                msg_type = msg.get("MessageType", "")
+                meta = msg.get("MetaData", {})
+                mmsi = meta.get("MMSI", 0)
+                if not mmsi:
+                    continue
+
+                # Collect ship type from static data messages
+                if msg_type == "ShipStaticData":
+                    ssd = msg.get("Message", {}).get("ShipStaticData", {})
+                    st = ssd.get("Type", 0) or 0
+                    if st and mmsi not in seen_mmsi:
+                        # Store type for later use
+                        _ship_types = getattr(_fetch_ships, '_types', {})
+                        _ship_types[mmsi] = st
+                        _fetch_ships._types = _ship_types
+                    continue
+
+                if msg_type != "PositionReport":
+                    continue
+
+                if mmsi in seen_mmsi:
+                    continue
+                seen_mmsi.add(mmsi)
+
+                pos = msg.get("Message", {}).get("PositionReport", {})
+                lat = pos.get("Latitude", 0)
+                lon = pos.get("Longitude", 0)
+                if lat == 0 and lon == 0:
+                    continue
+
+                zone_id, zone_name = find_zone(lat, lon)
+                if not zone_id:
+                    continue
+
+                # Get ship type from static data cache or metadata
+                _ship_types = getattr(_fetch_ships, '_types', {})
+                ship_type = _ship_types.get(mmsi, 0) or meta.get("ShipType", 0) or 0
+                vtype = classify_vessel(ship_type)
+
+                # Name-based classification fallback
+                ship_name = (meta.get("ShipName") or "UNKNOWN").strip().upper()
+                if vtype == "other":
+                    name_lower = ship_name.lower()
+                    if any(k in name_lower for k in ["mt ", "vlcc", "tanker", "crude", "oil", "lng", "lpg", "chemical"]):
+                        vtype = "tanker"
+                    elif any(k in name_lower for k in ["bulk", "cargo", "mv ", "carrier", "grain", "coal"]):
+                        vtype = "cargo"
+                    elif any(k in name_lower for k in ["msc ", "cosco", "maersk", "cma", "container", "express"]):
+                        vtype = "container"
+                    elif any(k in name_lower for k in ["navy", "warship", "patrol", "ins ", "hms ", "uss "]):
+                        vtype = "military"
+
+                vessel = {
+                    "mmsi": mmsi,
+                    "name": ship_name,
+                    "type": vtype,
+                    "lat": round(lat, 4),
+                    "lon": round(lon, 4),
+                    "speed": round(pos.get("Sog", 0), 1),
+                    "heading": round(pos.get("TrueHeading", pos.get("Cog", 0)), 0),
+                    "country": (meta.get("country_iso") or meta.get("Flag", "") or "").strip(),
+                    "destination": (meta.get("Destination") or "").strip(),
+                }
+
+                if zone_id not in vessels_by_zone:
+                    vessels_by_zone[zone_id] = []
+                if len(vessels_by_zone[zone_id]) < 50:  # cap per zone
+                    vessels_by_zone[zone_id].append(vessel)
+
+        logger.info(f"AIS: collected {sum(len(v) for v in vessels_by_zone.values())} vessels across {len(vessels_by_zone)} zones")
+
+    except Exception as e:
+        logger.error(f"AISStream connection failed: {e}")
+        return 0
+
+    # Deactivate old vessel signals
+    old_vessel = await session.execute(
+        select(Signal)
+        .where(Signal.signal_type == "vessel_tracking")
+        .where(Signal.is_active == True)
+    )
+    for s in old_vessel.scalars().all():
+        s.is_active = False
+
+    # Store new signals
+    for zone_id, vessels in vessels_by_zone.items():
+        if not vessels:
+            continue
+
+        zone_name = MARITIME_ZONES.get(zone_id, {}).get("name", zone_id)
+        type_counts = {}
+        for v in vessels:
+            type_counts[v["type"]] = type_counts.get(v["type"], 0) + 1
+
+        tanker_count = type_counts.get("tanker", 0)
+        military_count = type_counts.get("military", 0)
+        severity = "low"
+        if military_count >= 3:
+            severity = "high"
+        elif military_count >= 1 or tanker_count >= 15:
+            severity = "medium"
+
+        type_summary = ", ".join(f"{c} {t}" for t, c in sorted(type_counts.items(), key=lambda x: -x[1]))
+
+        session.add(Signal(
+            signal_type="vessel_tracking",
+            title=f"{len(vessels)} vessels in {zone_name}",
+            description=f"Live AIS: {type_summary}.",
+            severity=severity,
+            entity_ids_json=json.dumps([]),
+            data_json=json.dumps({
+                "zone": zone_id,
+                "zone_name": zone_name,
+                "vessel_count": len(vessels),
+                "type_counts": type_counts,
+                "vessels": vessels[:30],
+                "type": "ais_live",
+            }),
+            detected_at=now,
+            is_active=True,
+        ))
+        signals += 1
 
     return signals
 

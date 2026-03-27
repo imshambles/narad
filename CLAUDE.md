@@ -86,7 +86,12 @@ narad/
 │
 ├── templates/
 │   ├── base.html             # Dark theme, monospace, COMMAND nav, LIVE badge
-│   ├── briefing.html         # MAP-FIRST: full-screen Leaflet map + sidebar + ticker
+│   ├── briefing.html         # Slim orchestrator (~100 lines): includes partials + JS modules
+│   ├── partials/             # Jinja2 includes for sidebar panels
+│   │   ├── sidebar_ask.html      # "Ask Narad" query input
+│   │   ├── sidebar_stories.html  # Situation, warning, assessment, stories, connections
+│   │   ├── sidebar_markets.html  # MARKETS grid + TRADING SIGNALS container
+│   │   └── sidebar_threat.html   # INDIA BILATERAL relationship matrix
 │   ├── event_detail.html     # Timeline + facts + sources (dark theme)
 │   ├── events.html           # Explore all events (accessible but not in nav)
 │   ├── dashboard.html        # Raw feed (accessible but not in nav)
@@ -95,7 +100,15 @@ narad/
 │   └── status.html           # Admin pipeline status
 │
 └── static/
-    ├── css/custom.css
+    ├── css/
+    │   ├── custom.css         # Minimal Tailwind overrides
+    │   └── briefing.css       # Map layout, sidebar, ticker bar, popup styles
+    ├── js/
+    │   ├── map_init.js        # Leaflet map setup, icons, zones, static data layers
+    │   ├── map_geoint.js      # GEOINT live layers (thermal + aircraft) + refresh
+    │   ├── market.js          # Market grid, ticker bar rendering + refresh
+    │   ├── commodity.js       # Trading signal cards rendering + refresh
+    │   └── sidebar.js         # Toggle, story expand, Ask Narad, live update scheduler
     └── map_data.json          # 200+ static map markers: bases, conflicts, disputes,
                                #   chokepoints, pipelines, shipping lanes, nuclear sites,
                                #   BRI routes, submarine cables, sanctions zones

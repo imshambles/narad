@@ -1,0 +1,19 @@
+<!-- sidebar_threat.html — India bilateral relationship matrix -->
+{% if threat_matrix %}
+<div class="sb-panel px-3 py-2">
+    <p class="font-mono text-[9px] text-white/15 mb-1.5">INDIA BILATERAL</p>
+    {% for entry in threat_matrix %}
+    <div class="flex items-center gap-2 py-0.5">
+        <span class="text-[10px] text-white/35 w-12 truncate">{{ entry.country }}</span>
+        <div class="flex-1 flex gap-0.5 h-1 rounded-full overflow-hidden bg-white/5">
+            <div class="bg-green-500/50 rounded-full" style="width: {{ entry.cooperation * 100 }}%"></div>
+            <div class="flex-1"></div>
+            <div class="bg-red-500/50 rounded-full" style="width: {{ entry.tension * 100 }}%"></div>
+        </div>
+        <span
+            class="font-mono text-[8px] {% if entry.trend == 'warming' %}text-green-400/40{% elif entry.trend == 'cooling' %}text-red-400/40{% else %}text-white/15{% endif %} w-8 text-right">{{
+            entry.trend }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

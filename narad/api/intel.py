@@ -34,10 +34,56 @@ async def get_commodity_signals(session: AsyncSession = Depends(get_session)):
         select(Signal).where(Signal.signal_type == "commodity").where(Signal.is_active == True)
         .order_by(Signal.severity.desc(), Signal.detected_at.desc()).limit(10)
     )
+    signals_out = []
+    # Get current prices for live delta calculation
+    current_prices = {}
+    for sym in ["BZ=F", "CL=F", "GC=F", "ZW=F", "NG=F", "INR=X", "^NSEI"]:
+        point = await session.execute(
+            select(MarketDataPoint).where(MarketDataPoint.symbol == sym)
+            .order_by(MarketDataPoint.fetched_at.desc()).limit(1)
+        )
+        p = point.scalar_one_or_none()
+        if p:
+            current_prices[sym] = p.price
+
+    for s in result.scalars().all():
+        data = json.loads(s.data_json or "{}")
+        # Compute price change since signal was triggered
+        price_deltas = {}
+        pat = data.get("price_at_trigger", {})
+        for sym, trigger_price in pat.items():
+            if sym in current_prices and trigger_price:
+                curr = current_prices[sym]
+                delta_pct = ((curr - trigger_price) / trigger_price) * 100
+                price_deltas[sym] = {
+                    "trigger_price": trigger_price,
+                    "current_price": curr,
+                    "delta_pct": round(delta_pct, 2),
+                }
+        data["price_deltas"] = price_deltas
+        signals_out.append({
+            "title": s.title, "description": s.description, "severity": s.severity,
+            "data": data, "detected_at": s.detected_at,
+        })
+    return signals_out
+
+
+@router.get("/intel/market/history")
+async def get_market_history(
+    symbol: str = Query(..., description="Market symbol e.g. BZ=F"),
+    limit: int = Query(48, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return price history for sparkline rendering."""
+    result = await session.execute(
+        select(MarketDataPoint).where(MarketDataPoint.symbol == symbol)
+        .order_by(MarketDataPoint.fetched_at.desc()).limit(limit)
+    )
+    points = list(result.scalars().all())
+    points.reverse()  # chronological order
     return [
-        {"title": s.title, "description": s.description, "severity": s.severity,
-         "data": json.loads(s.data_json or "{}"), "detected_at": s.detected_at}
-        for s in result.scalars().all()
+        {"price": p.price, "fetched_at": p.fetched_at}
+        for p in points
     ]
 
 
@@ -45,6 +91,42 @@ async def get_commodity_signals(session: AsyncSession = Depends(get_session)):
 async def get_geoint():
     from narad.intel.geospatial import get_geoint_summary
     return await get_geoint_summary()
+
+
+@router.get("/intel/vessels")
+async def get_vessels(session: AsyncSession = Depends(get_session)):
+    """Get current vessel positions. Uses real AIS data if available, otherwise simulated."""
+    # Check for real AIS signals first
+    result = await session.execute(
+        select(Signal)
+        .where(Signal.signal_type == "vessel_tracking")
+        .where(Signal.is_active == True)
+        .order_by(Signal.detected_at.desc())
+    )
+    real_zones = []
+    for s in result.scalars().all():
+        data = json.loads(s.data_json or "{}")
+        real_zones.append({
+            "zone": data.get("zone"),
+            "zone_name": data.get("zone_name"),
+            "vessel_count": data.get("vessel_count", 0),
+            "type_counts": data.get("type_counts", {}),
+            "vessels": data.get("vessels", []),
+            "detected_at": s.detected_at,
+        })
+    # Supplement with simulated vessels for zones without real AIS data
+    from narad.intel.vessel_sim import generate_vessels
+    sim_zones = generate_vessels()
+
+    if real_zones:
+        real_zone_ids = {z["zone"] for z in real_zones}
+        # Add simulated data for zones we don't have real data for
+        for sz in sim_zones:
+            if sz["zone"] not in real_zone_ids:
+                real_zones.append(sz)
+        return real_zones
+
+    return sim_zones
 
 
 @router.get("/intel/entities")
