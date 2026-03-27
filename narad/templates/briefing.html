@@ -489,6 +489,28 @@
             L.polyline(br.points, { color: br.color, weight: 2, opacity: 0.15, dashArray: '10,6' }).addTo(map)
                 .bindPopup(`<div class="map-popup"><span class="tag" style="background:#ef444422;color:#ef4444">BRI</span><br><b>${br.name}</b></div>`);
         });
+
+        // Shipping lanes
+        const commIcons = {crude_oil:'OIL', oil_lng:'OIL', lng:'LNG', coal_lng:'COAL', grain:'GRAIN', iron_soy:'IRON', mixed:'TRADE'};
+        const shippingLayer = L.layerGroup();
+        (md.shipping_lanes || []).forEach(sl => {
+            const weight = sl.critical ? 2.5 : 1.5;
+            const opacity = sl.critical ? 0.35 : 0.15;
+            const line = L.polyline(sl.points, {color: sl.color, weight, opacity, smoothFactor: 2});
+            const tag = commIcons[sl.commodity] || 'SHIP';
+            line.bindPopup(`<div class="map-popup"><span class="tag" style="background:${sl.color}22;color:${sl.color}">${tag}</span><br><b>${sl.name}</b><br>${sl.volume}</div>`);
+            shippingLayer.addLayer(line);
+
+            // Arrow markers along the route to show direction
+            if (sl.points.length >= 2) {
+                const mid = Math.floor(sl.points.length / 2);
+                const pt = sl.points[mid];
+                const label = L.marker(pt, {interactive: false, icon: L.divIcon({className:'', iconSize:[30,12],
+                    html:`<span style="font-family:monospace;font-size:8px;color:${sl.color}88;white-space:nowrap">${tag}</span>`})});
+                shippingLayer.addLayer(label);
+            }
+        });
+        shippingLayer.addTo(map);
     });
 
     // Plot events on map
