@@ -162,6 +162,7 @@ async def start_scheduler():
     from narad.intel.analyst import run_intelligence_analysis
     from narad.intel.market_data import fetch_market_data
     from narad.intel.geospatial import fetch_geoint
+    from narad.intel.commodity import generate_commodity_signals
 
     scheduler.add_job(
         generate_briefing, "interval", minutes=30,
@@ -198,6 +199,13 @@ async def start_scheduler():
         fetch_geoint, "interval", minutes=10,
         id="geoint", replace_existing=True,
         next_run_time=now + timedelta(seconds=45),
+    )
+
+    # Commodity intelligence
+    scheduler.add_job(
+        generate_commodity_signals, "interval", minutes=30,
+        id="commodity", replace_existing=True,
+        next_run_time=now + timedelta(minutes=9),
     )
 
     # Intelligence analyst — runs after entity graph and threat matrix are populated

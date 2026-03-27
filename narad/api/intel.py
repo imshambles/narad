@@ -28,6 +28,19 @@ async def get_market_data(session: AsyncSession = Depends(get_session)):
     return await get_latest_prices()
 
 
+@router.get("/intel/commodity")
+async def get_commodity_signals(session: AsyncSession = Depends(get_session)):
+    result = await session.execute(
+        select(Signal).where(Signal.signal_type == "commodity").where(Signal.is_active == True)
+        .order_by(Signal.severity.desc(), Signal.detected_at.desc()).limit(10)
+    )
+    return [
+        {"title": s.title, "description": s.description, "severity": s.severity,
+         "data": json.loads(s.data_json or "{}"), "detected_at": s.detected_at}
+        for s in result.scalars().all()
+    ]
+
+
 @router.get("/intel/geoint")
 async def get_geoint():
     from narad.intel.geospatial import get_geoint_summary
