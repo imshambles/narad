@@ -31,7 +31,7 @@ function buildLayerPanel() {
         { label: 'MILITARY', keys: ['bases', 'nuclear', 'missiles', 'conflicts'] },
         { label: 'BORDERS', keys: ['disputes', 'zones', 'sanctions', 'eez'] },
         { label: 'TRADE', keys: ['shipping', 'chokepoints', 'pipelines', 'cables', 'bri'] },
-        { label: 'LIVE', keys: ['geoint', 'aircraft', 'vessels'] },
+        { label: 'LIVE', keys: ['geoint', 'aircraft', 'vessels', 'stories'] },
     ];
 
     let html = '';
@@ -58,9 +58,10 @@ function buildLayerPanel() {
         html += '</div>';
     }
 
-    // Show all button
-    html += `<div class="mt-2 pt-1.5 border-t border-white/5">
+    // Show all / Hide all buttons
+    html += `<div class="mt-2 pt-1.5 border-t border-white/5 flex items-center gap-3">
         <button onclick="onShowAll()" class="font-mono text-[8px] text-white/20 hover:text-white/40">SHOW ALL</button>
+        <button onclick="onHideAll()" class="font-mono text-[8px] text-white/20 hover:text-white/40">HIDE ALL</button>
     </div>`;
 
     container.innerHTML = html;
@@ -83,6 +84,11 @@ function onLayerSolo(key) {
 
 function onShowAll() {
     showAllLayers();
+    buildLayerPanel();
+}
+
+function onHideAll() {
+    hideAllLayers();
     buildLayerPanel();
 }
 

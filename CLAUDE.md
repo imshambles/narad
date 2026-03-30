@@ -22,16 +22,18 @@ Sources (16) → Cluster → Summarize → Entity Graph → Threat Matrix → Si
 
 Additional pipelines:
 - Market data: every 15 min (Yahoo Finance — oil, gold, forex, indices)
-- GEOINT: every 10 min (NASA FIRMS thermal + OpenSky aircraft)
+- GEOINT: every 10 min (NASA FIRMS thermal + OpenSky aircraft + AIS vessels)
 - Commodity signals: every 30 min (maps events to stock buckets)
-- Intelligence analyst: every 30 min (Gemini cross-domain analysis)
+- Cross-domain correlation: every 10 min (compound signal detection across GEOINT + market + entities)
+- Intelligence analyst: every 30 min (Gemini cross-domain analysis, now includes correlation context)
+- Entity merge: every 6 hours (fuzzy deduplication of knowledge graph)
 ```
 
 ### Data Sources (16 active)
 - **Wire services**: AP, Reuters, AFP/France24
 - **Institutional**: UN News, ReliefWeb
 - **India-focused**: 6 Google News RSS feeds (India Defence, Diplomacy, Geopolitics, Reuters India, AP India, ANI Wire)
-- **OSINT**: Reddit (7 subreddits), Think tanks (14 sources: RAND, Bellingcat, The Diplomat, War on the Rocks), OSINT Twitter (10 accounts via RSSHub)
+- **OSINT**: Reddit (7 subreddits), Think tanks (14 sources: RAND, Bellingcat, The Diplomat, War on the Rocks), OSINT Twitter (10 accounts via RSSHub + Nitter fallback)
 - **GDELT**: India-focused geopolitical event data
 - **NewsAPI**: disabled (needs key in .env)
 
@@ -43,42 +45,45 @@ narad/
 ├── database.py               # SQLAlchemy async engine, init_db with auto-migrations
 ├── models.py                 # ALL models: Source, Article, Event, EventArticle,
 │                             #   EventRelationship, Briefing, Entity, EntityRelation,
-│                             #   EntityMention, ThreatMatrix, MarketDataPoint, Signal
+│                             #   EntityMention, ThreatMatrix, ThreatMatrixHistory,
+│                             #   MarketDataPoint, Signal
 ├── scheduler.py              # APScheduler — all job definitions and timing
 ├── schemas.py                # Pydantic response schemas
 │
 ├── sources/                  # Data source adapters
 │   ├── base.py               # SourceAdapter ABC + RawArticle dataclass
 │   ├── rss.py                # RSS/Atom feed parser
-│   ├── gdelt.py              # GDELT API (India-focused query)
+│   ├── gdelt.py              # GDELT API (India-focused, exponential backoff on 429)
 │   ├── newsapi.py            # NewsAPI.org adapter
 │   ├── reddit.py             # Reddit RSS (7 subreddits)
 │   ├── thinktanks.py         # 14 think tank RSS feeds in parallel
-│   └── osint_twitter.py      # Twitter via RSSHub proxy
+│   └── osint_twitter.py      # Twitter via RSSHub + Nitter fallback
 │
 ├── pipeline/                 # Processing pipeline
 │   ├── normalizer.py         # Raw → normalized article (SHA256 fingerprint)
 │   ├── deduplicator.py       # Fingerprint + rapidfuzz fuzzy title matching
 │   ├── clusterer.py          # TF-IDF + agglomerative clustering (scikit-learn)
 │   ├── summarizer.py         # Gemini: event summary + timeline + entities
-│   ├── briefing.py           # Gemini: daily briefing with scenarios + predictions
+│   ├── briefing.py           # Gemini: confidence-scored briefing with evidence chains
 │   └── graph_builder.py      # Entity relationship edges
 │
 ├── intel/                    # Intelligence layer
-│   ├── entity_graph.py       # Persistent entity knowledge graph
-│   ├── threat_matrix.py      # India bilateral relationship scores
+│   ├── entity_graph.py       # Entity knowledge graph + alias resolution + fuzzy merge
+│   ├── threat_matrix.py      # India bilateral scores + historical trend snapshots
 │   ├── signals.py            # Anomaly detection (spikes, sentiment shifts)
+│   ├── correlator.py         # Cross-domain compound signal detection (7 rules)
 │   ├── analyst.py            # Gemini: RAW-grade intelligence assessments
 │   ├── market_data.py        # Yahoo Finance: oil, gold, forex, indices (10 symbols)
-│   ├── geospatial.py         # NASA FIRMS thermal + OpenSky ADS-B aircraft
+│   ├── geospatial.py         # NASA FIRMS thermal + OpenSky ADS-B + AIS vessels
 │   ├── commodity.py          # Event → stock bucket mapping + Gemini trade signals
-│   └── query.py              # "Ask Narad" — natural language query against DB
+│   └── query.py              # "Ask Narad" — 30-day NL query with entity graph traversal
 │
 ├── api/                      # REST endpoints
 │   ├── articles.py           # /api/articles, /api/sources
 │   ├── events.py             # /api/events, /api/events/{id}, /api/events/graph
 │   └── intel.py              # /api/intel/query, /api/intel/market, /api/intel/geoint,
-│                             #   /api/intel/commodity, /api/intel/entities, etc.
+│                             #   /api/intel/commodity, /api/intel/entities,
+│                             #   /api/intel/threat-matrix/history, /api/intel/vessels
 │
 ├── web/                      # Template routes
 │   └── views.py              # / (command center), /events/{id}, /feed, /explore,
@@ -89,9 +94,9 @@ narad/
 │   ├── briefing.html         # Slim orchestrator (~100 lines): includes partials + JS modules
 │   ├── partials/             # Jinja2 includes for sidebar panels
 │   │   ├── sidebar_ask.html      # "Ask Narad" query input
-│   │   ├── sidebar_stories.html  # Situation, warning, assessment, stories, connections
+│   │   ├── sidebar_stories.html  # Stories with confidence badges, evidence chains, watch signals
 │   │   ├── sidebar_markets.html  # MARKETS grid + TRADING SIGNALS container
-│   │   └── sidebar_threat.html   # INDIA BILATERAL relationship matrix
+│   │   └── sidebar_threat.html   # INDIA BILATERAL matrix + trend sparklines + compound signals
 │   ├── event_detail.html     # Timeline + facts + sources (dark theme)
 │   ├── events.html           # Explore all events (accessible but not in nav)
 │   ├── dashboard.html        # Raw feed (accessible but not in nav)
@@ -128,6 +133,42 @@ Contains 200+ data points:
 - Submarine cables: 5
 - Sanctions zones: 6
 
+### Intelligence Features
+
+**Cross-Domain Correlation Engine** (`intel/correlator.py`):
+7 rules that detect compound signals when multiple domains activate simultaneously:
+- `hormuz_oil`: Thermal/military at Hormuz + oil price surge
+- `lac_tension_defense`: LAC GEOINT + China/India entity spikes
+- `pak_border_escalation`: LOC GEOINT + Pakistan entity spikes
+- `gulf_aden_shipping`: Gulf of Aden activity + commodity moves
+- `gold_rush_geopolitical`: Multiple high-severity signals + gold surge
+- `inr_pressure`: Oil spike + geopolitical tension + India entity activity
+- `scs_maritime`: South China Sea military activity + diplomatic entity spikes
+
+Requires 2+ cross-domain factors to trigger. Escalates severity with 3+ or 4+ factors.
+
+**Entity Disambiguation** (`intel/entity_graph.py`):
+- 25+ hardcoded aliases (PM Modi → narendra modi, US → united states, etc.)
+- Title/prefix stripping (President, PM, Dr, Gen, etc.)
+- Fuzzy matching at 88% threshold via rapidfuzz against same-type entities
+- Periodic bulk merge job (every 6h) cleans up existing duplicates
+
+**Threat Matrix History** (`models.py: ThreatMatrixHistory`):
+- Hourly snapshots of cooperation/tension scores per country
+- API endpoint: `/api/intel/threat-matrix/history?country_id=X&days=7`
+- Sidebar renders hover sparklines from historical data
+
+**Confidence-Scored Briefings** (`pipeline/briefing.py`):
+- Each story includes `confidence` (high/medium/low), `confidence_reason`, `evidence_chain`
+- Briefing prompt receives active signals (GEOINT, correlations, spikes) as additional context
+- Stories show historical parallels and expandable watch signals in UI
+
+**Extended Query Interface** (`intel/query.py`):
+- 30-day lookback (was 72h)
+- Query-relevant event scoring with keyword boost
+- Entity graph traversal: finds entities mentioned in question, walks their relationships
+- Includes correlation signals in context
+
 ### Database
 SQLite with WAL mode. Auto-creates tables on startup. Auto-migrates missing columns.
 - **DO NOT delete the DB** unless you want to lose all historical data
@@ -138,6 +179,7 @@ SQLite with WAL mode. Auto-creates tables on startup. Auto-migrates missing colu
 ```
 GEMINI_API_KEY=<required for AI features>
 FIRMS_API_KEY=<required for satellite thermal detection>
+AISSTREAM_API_KEY=<optional, for live AIS vessel tracking>
 NEWSAPI_KEY=<optional>
 DATABASE_URL=<optional, defaults to local SQLite>
 ```
@@ -173,11 +215,11 @@ docker exec narad python -c "import asyncio; from narad.intel.commodity import g
 - **Mobile-friendly** — responsive sidebar, touch targets
 
 ## Known Issues / TODO
-- OSINT Twitter adapter returns 0 (RSSHub instances often down)
-- GDELT rate-limited (429) frequently — recovers on next cycle
 - Gemini free tier: 15 RPM limit — some jobs may fail on first run, succeed on retry
-- Ship tracking (AIS) not yet integrated — only shipping lane routes drawn statically
+- OSINT Twitter depends on RSSHub/Nitter availability — multiple fallbacks configured but all proxies can be unreliable
+- GDELT rate-limited (429) frequently — exponential backoff handles this (2min→4min→8min→max 30min)
+- AIS vessel tracking requires AISSTREAM_API_KEY — falls back to simulation without it
 - Stock buckets in sidebar need visual redesign — currently text-heavy
-- Commodity signals need more real-time market correlation
 - Render deployment sometimes 502s on cold start — cron-job.org keeps it warm
 - Some map coordinates may need fine-tuning (verify when zoomed in)
+- Entity merge can be aggressive at 88% fuzzy threshold — may need tuning for short entity names

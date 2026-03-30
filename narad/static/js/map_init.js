@@ -51,6 +51,14 @@ const ZONE_CENTERS = {};
 for (const [id, z] of Object.entries(ZONES)) {
     ZONE_CENTERS[id] = [(z.bounds[0][0] + z.bounds[1][0]) / 2, (z.bounds[0][1] + z.bounds[1][1]) / 2];
 }
+// Maritime zones used by vessel tracking (AIS live + simulation)
+ZONE_CENTERS['arabian_sea'] = [15.0, 63.5];
+ZONE_CENTERS['indian_ocean_w'] = [3.5, 70.0];
+ZONE_CENTERS['malacca'] = [3.0, 102.0];
+ZONE_CENTERS['red_sea'] = [21.0, 38.0];
+ZONE_CENTERS['bay_of_bengal'] = [13.5, 86.5];
+ZONE_CENTERS['mediterranean'] = [37.5, 15.0];
+ZONE_CENTERS['global_other'] = [0, 40.0];
 
 // Init map
 const map = L.map('world-map', {
@@ -139,9 +147,12 @@ fetch('/static/map_data.json').then(r => r.json()).then(md => {
     missileLayer.addTo(map);
     mapLayers.missiles = { layer: missileLayer, name: 'Missile Ranges', icon: 'circle', color: '#a855f7', on: true };
     map.on('zoomend', () => {
-        if (mapLayers.missiles.on) {
-            if (map.getZoom() > 5) map.removeLayer(missileLayer);
-            else if (!map.hasLayer(missileLayer)) map.addLayer(missileLayer);
+        if (!mapLayers.missiles.on) return;
+        // Auto-hide missile ranges when zoomed in (too large to be useful)
+        if (map.getZoom() > 5) {
+            if (map.hasLayer(missileLayer)) map.removeLayer(missileLayer);
+        } else {
+            if (!map.hasLayer(missileLayer)) map.addLayer(missileLayer);
         }
     });
 
@@ -301,6 +312,12 @@ function soloLayer(key) {
 function showAllLayers() {
     for (const entry of Object.values(mapLayers)) {
         if (!entry.on) { map.addLayer(entry.layer); entry.on = true; }
+    }
+}
+
+function hideAllLayers() {
+    for (const entry of Object.values(mapLayers)) {
+        if (entry.on) { map.removeLayer(entry.layer); entry.on = false; }
     }
 }
 

@@ -1,19 +1,76 @@
-<!-- sidebar_threat.html — India bilateral relationship matrix -->
+<!-- sidebar_threat.html — India bilateral relationship matrix with trend indicators -->
 {% if threat_matrix %}
 <div class="sb-panel px-3 py-2">
     <p class="font-mono text-[9px] text-white/15 mb-1.5">INDIA BILATERAL</p>
     {% for entry in threat_matrix %}
-    <div class="flex items-center gap-2 py-0.5">
-        <span class="text-[10px] text-white/35 w-12 truncate">{{ entry.country }}</span>
-        <div class="flex-1 flex gap-0.5 h-1 rounded-full overflow-hidden bg-white/5">
-            <div class="bg-green-500/50 rounded-full" style="width: {{ entry.cooperation * 100 }}%"></div>
+    <div class="flex items-center gap-2 py-0.5 group">
+        <span class="text-[10px] text-white/35 w-14 truncate" title="{{ entry.country }}">{{ entry.country }}</span>
+        <div class="flex-1 flex gap-0.5 h-1.5 rounded-full overflow-hidden bg-white/5">
+            <div class="bg-green-500/50 rounded-full transition-all duration-500" style="width: {{ (entry.cooperation * 100)|round }}%"></div>
             <div class="flex-1"></div>
-            <div class="bg-red-500/50 rounded-full" style="width: {{ entry.tension * 100 }}%"></div>
+            <div class="bg-red-500/50 rounded-full transition-all duration-500" style="width: {{ (entry.tension * 100)|round }}%"></div>
         </div>
-        <span
-            class="font-mono text-[8px] {% if entry.trend == 'warming' %}text-green-400/40{% elif entry.trend == 'cooling' %}text-red-400/40{% else %}text-white/15{% endif %} w-8 text-right">{{
-            entry.trend }}</span>
+        <span class="font-mono text-[8px] w-3 text-center
+            {% if entry.trend == 'warming' %}text-green-400/50{% elif entry.trend == 'cooling' %}text-red-400/50{% elif entry.trend == 'volatile' %}text-amber-400/50{% else %}text-white/15{% endif %}"
+            title="{{ entry.trend }} | C:{{ (entry.cooperation * 100)|round }}% T:{{ (entry.tension * 100)|round }}%">{% if entry.trend == 'warming' %}&#9650;{% elif entry.trend == 'cooling' %}&#9660;{% elif entry.trend == 'volatile' %}&#9674;{% else %}&#8212;{% endif %}</span>
+        <canvas class="threat-sparkline hidden group-hover:block" data-country-id="{{ entry.country_id }}" width="40" height="12" title="7-day trend"></canvas>
     </div>
     {% endfor %}
 </div>
+
+<!-- Correlation alerts -->
+{% if correlations %}
+<div class="sb-panel px-3 py-2 border-amber-500/15">
+    <p class="font-mono text-[9px] text-amber-400/40 mb-1.5">COMPOUND SIGNALS</p>
+    {% for corr in correlations %}
+    <div class="py-1 border-b border-white/5 last:border-0">
+        <div class="flex items-center gap-1 mb-0.5">
+            <span class="w-1.5 h-1.5 rounded-full {% if corr.severity == 'critical' %}bg-red-500 pulse-dot{% elif corr.severity == 'high' %}bg-amber-500{% else %}bg-white/20{% endif %}"></span>
+            <span class="font-mono text-[8px] {% if corr.severity == 'critical' %}text-red-400{% elif corr.severity == 'high' %}text-amber-400{% else %}text-white/25{% endif %}">{{ corr.severity }}</span>
+        </div>
+        <p class="text-[10px] text-white/40 leading-snug">{{ corr.title|replace("COMPOUND: ", "") }}</p>
+        {% if corr.data and corr.data.domains %}
+        <p class="font-mono text-[8px] text-white/15 mt-0.5">{{ corr.data.domains|join(' + ')|upper }} ({{ corr.data.factor_count }} factors)</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<script>
+// Lazy-load sparklines on hover
+document.querySelectorAll('.threat-sparkline').forEach(canvas => {
+    let loaded = false;
+    canvas.parentElement.addEventListener('mouseenter', async () => {
+        if (loaded) return;
+        loaded = true;
+        const cid = canvas.dataset.countryId;
+        if (!cid) return;
+        try {
+            const resp = await fetch(`/api/intel/threat-matrix/history?country_id=${cid}&days=7`);
+            const data = await resp.json();
+            if (!data.length || !data[0].points.length) return;
+            const pts = data[0].points;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const tensions = pts.map(p => p.tension);
+            const coops = pts.map(p => p.cooperation);
+            const maxV = Math.max(...tensions, ...coops, 0.1);
+            const drawLine = (vals, color) => {
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                vals.forEach((v, i) => {
+                    const x = (i / (vals.length - 1)) * w;
+                    const y = h - (v / maxV) * h;
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            };
+            drawLine(coops, 'rgba(34,197,94,0.5)');
+            drawLine(tensions, 'rgba(239,68,68,0.5)');
+        } catch(e) {}
+    });
+});
+</script>
 {% endif %}

@@ -12,7 +12,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from narad.database import async_session
-from narad.models import Entity, EntityMention, EntityRelation, Event, ThreatMatrix
+from narad.models import Entity, EntityMention, EntityRelation, Event, ThreatMatrix, ThreatMatrixHistory
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +159,23 @@ async def update_threat_matrix() -> None:
                     trend=trend,
                     recent_events_json=json.dumps(recent_events[:5]),
                     updated_at=now,
+                ))
+
+            # Store historical snapshot (one per country per hour max)
+            last_snap = await session.execute(
+                select(ThreatMatrixHistory)
+                .where(ThreatMatrixHistory.country_entity_id == country.id)
+                .order_by(ThreatMatrixHistory.snapshot_at.desc())
+                .limit(1)
+            )
+            last = last_snap.scalar_one_or_none()
+            if not last or (now - last.snapshot_at.replace(tzinfo=timezone.utc)).total_seconds() >= 3600:
+                session.add(ThreatMatrixHistory(
+                    country_entity_id=country.id,
+                    cooperation_score=cooperation,
+                    tension_score=tension,
+                    trend=trend,
+                    snapshot_at=now,
                 ))
 
             updated += 1

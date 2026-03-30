@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from narad.database import get_session
 from pydantic import BaseModel
 
-from narad.models import Entity, EntityRelation, MarketDataPoint, Signal, ThreatMatrix
+from narad.models import Entity, EntityRelation, MarketDataPoint, Signal, ThreatMatrix, ThreatMatrixHistory
 
 router = APIRouter(tags=["intel"])
 
@@ -167,6 +167,47 @@ async def get_threat_matrix(session: AsyncSession = Depends(get_session)):
             "updated_at": tm.updated_at,
         })
     return entries
+
+
+@router.get("/intel/threat-matrix/history")
+async def get_threat_matrix_history(
+    country_id: int | None = Query(None, description="Filter by country entity ID"),
+    days: int = Query(7, ge=1, le=90),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return threat matrix trend data for sparkline/chart rendering."""
+    from datetime import datetime, timedelta, timezone
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    stmt = (
+        select(ThreatMatrixHistory)
+        .where(ThreatMatrixHistory.snapshot_at >= cutoff)
+        .order_by(ThreatMatrixHistory.snapshot_at.asc())
+    )
+    if country_id:
+        stmt = stmt.where(ThreatMatrixHistory.country_entity_id == country_id)
+
+    result = await session.execute(stmt)
+    snapshots = result.scalars().all()
+
+    # Group by country
+    by_country = {}
+    for s in snapshots:
+        cid = s.country_entity_id
+        if cid not in by_country:
+            country = await session.get(Entity, cid)
+            by_country[cid] = {
+                "country_id": cid,
+                "country": country.name if country else "Unknown",
+                "points": [],
+            }
+        by_country[cid]["points"].append({
+            "cooperation": round(s.cooperation_score, 3),
+            "tension": round(s.tension_score, 3),
+            "trend": s.trend,
+            "time": s.snapshot_at,
+        })
+
+    return list(by_country.values())
 
 
 @router.get("/intel/signals")

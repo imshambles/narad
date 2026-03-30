@@ -200,6 +200,23 @@ async def run_intelligence_analysis() -> None:
         if not geoint_data:
             geoint_data = "No active GEOINT signals.\n"
 
+        # Gather cross-domain correlation signals
+        corr_signals = await session.execute(
+            select(Signal)
+            .where(Signal.signal_type == "correlation")
+            .where(Signal.is_active == True)
+            .order_by(Signal.detected_at.desc())
+            .limit(5)
+        )
+        corr_data = ""
+        for cs in corr_signals.scalars().all():
+            cd = json.loads(cs.data_json or "{}")
+            domains = ", ".join(cd.get("domains", []))
+            corr_data += f"[{cs.severity}] {cs.title} ({domains}): {cs.description[:200]}\n"
+
+        if corr_data:
+            geoint_data += f"\n=== CROSS-DOMAIN CORRELATIONS ===\n{corr_data}"
+
         prompt = ANALYST_PROMPT.format(
             events_data=events_data,
             market_data=market_data,

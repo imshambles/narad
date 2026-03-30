@@ -12,7 +12,7 @@
                 {% if critical_count >= 2 %}CRITICAL{% elif critical_count >= 1 %}ELEVATED{% else %}ACTIVE{% endif %}
             </span>
         </div>
-        <span class="font-mono text-[9px] text-white/15">{{ stories | length }} stories · {{
+        <span class="font-mono text-[9px] text-white/15">{{ stories | length }} stories · <span id="vessel-count"></span>{{
             (briefing.generated_at|ist).strftime('%H:%M IST') }}</span>
     </div>
 </div>
@@ -58,14 +58,50 @@
             </div>
             {% endif %}
             {% if story.scenarios and story.scenarios.likely %}
-            <p class="text-[10px] text-white/20 leading-relaxed"><span class="text-blue-400">L</span> {{
+            <p class="text-[10px] text-white/20 leading-relaxed mb-1"><span class="text-blue-400/60">L</span> {{
                 story.scenarios.likely }}</p>
             {% endif %}
-            {% if story.event_id %}
-            <a href="/events/{{ story.event_id }}"
-                class="font-mono text-[9px] text-white/15 hover:text-white/30 mt-1 inline-block">TIMELINE
-                →</a>
+            {% if story.scenarios and story.scenarios.historical_parallel %}
+            <p class="text-[10px] text-white/15 leading-relaxed mb-1"><span class="text-purple-400/50">H</span> {{ story.scenarios.historical_parallel }}</p>
             {% endif %}
+
+            <!-- Confidence badge -->
+            {% if story.confidence %}
+            <div class="flex items-center gap-1.5 mt-1.5 mb-1">
+                <span class="font-mono text-[8px] px-1 py-0.5 rounded
+                    {% if story.confidence == 'high' %}bg-green-500/10 text-green-400/50{% elif story.confidence == 'medium' %}bg-amber-500/10 text-amber-400/50{% else %}bg-white/5 text-white/20{% endif %}">{{ story.confidence }}</span>
+                {% if story.confidence_reason %}
+                <span class="text-[8px] text-white/15">{{ story.confidence_reason }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Evidence chain -->
+            {% if story.evidence_chain %}
+            <div class="mt-1.5 border-t border-white/5 pt-1.5">
+                <p class="font-mono text-[8px] text-white/15 mb-1">EVIDENCE</p>
+                {% for ev in story.evidence_chain[:4] %}
+                <p class="text-[9px] text-white/20 leading-snug pl-2 border-l border-white/5 mb-0.5">{{ ev }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Links -->
+            <div class="flex items-center gap-3 mt-1.5">
+                {% if story.event_id %}
+                <a href="/events/{{ story.event_id }}"
+                    class="font-mono text-[9px] text-white/15 hover:text-white/30">TIMELINE →</a>
+                {% endif %}
+                {% if story.watch_signals %}
+                <button onclick="this.nextElementSibling.classList.toggle('hidden')"
+                    class="font-mono text-[9px] text-blue-400/20 hover:text-blue-400/40">WATCH SIGNALS</button>
+                <div class="hidden">
+                    {% for ws in story.watch_signals %}
+                    <p class="text-[9px] text-blue-300/20 leading-snug pl-2">{{ ws }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>

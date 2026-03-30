@@ -99,49 +99,5 @@ async function refreshGeoint() {
     } catch (e) { console.log('GEOINT refresh failed:', e); }
 }
 
-// Initial GEOINT load (also plotted by map_init's first fetch, but this handles the sidebar)
-fetch('/api/intel/geoint').then(r => r.json()).then(data => {
-    const allSignals = [...(data.thermal || []), ...(data.aircraft || [])];
-    const activeZones = new Set(allSignals.map(s => s.data?.zone));
-
-    // Thermal on map
-    for (const t of (data.thermal || [])) {
-        const d = t.data || {};
-        const center = ZONE_CENTERS[d.zone];
-        if (!center) continue;
-        const radius = Math.min(Math.max(d.fire_count * 300, 5000), 150000);
-        const color = { critical: '#ef4444', high: '#f59e0b', medium: '#3b82f6', low: '#6b7280' }[t.severity] || '#6b7280';
-        L.circle(center, { radius, color, fillColor: color, fillOpacity: 0.15, weight: 1 }).addTo(map)
-            .bindPopup(`<div class="map-popup"><span class="tag" style="background:${color}22;color:${color}">THERMAL</span><br><b>${d.zone_name}</b><br>${d.fire_count} heat signatures<br>Peak: ${d.max_frp || 0} FRP | Night: ${d.night_count || 0}<br><br>${d.interpretation || ''}</div>`, { maxWidth: 280 });
-    }
-
-    // Aircraft on map
-    for (const a of (data.aircraft || [])) {
-        const d = a.data || {};
-        const center = ZONE_CENTERS[d.zone];
-        if (!center) continue;
-        let details = '';
-        if (d.details) {
-            details = '<br><br><table style="font-size:9px;width:100%"><tr style="color:#6b7280"><td>Call</td><td>Country</td><td>Alt</td></tr>';
-            for (const ac of d.details.slice(0, 5)) details += `<tr><td>${ac.callsign}</td><td>${ac.country}</td><td>${ac.altitude_m}m</td></tr>`;
-            details += '</table>';
-        }
-        L.marker(center, { icon: triIcon('#60a5fa', 12) }).addTo(map)
-            .bindPopup(`<div class="map-popup"><span class="tag" style="background:#3b82f622;color:#3b82f6">AIRCRAFT</span><br><b>${d.zone_name}</b><br>${d.military_count} military-pattern / ${d.total_aircraft} total${details}</div>`, { maxWidth: 280 });
-    }
-
-    // Highlight active zones
-    map.eachLayer(l => {
-        if (l instanceof L.Rectangle) {
-            for (const [id, z] of Object.entries(ZONES)) {
-                const b = l.getBounds();
-                if (Math.abs(b.getSouth() - z.bounds[0][0]) < 0.1) {
-                    if (activeZones.has(id)) {
-                        l.setStyle({ fillOpacity: 0.15, opacity: 0.6, dashArray: null });
-                    }
-                    break;
-                }
-            }
-        }
-    });
-});
+// Initial GEOINT load — reuse the same refreshGeoint() so markers go into layer groups
+refreshGeoint();

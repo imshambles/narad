@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from dateutil.parser import parse as parse_date
@@ -10,12 +11,24 @@ logger = logging.getLogger(__name__)
 
 GDELT_API = "https://api.gdeltproject.org/api/v2/doc/doc"
 
+# Track backoff state across fetch calls
+_gdelt_backoff_until = None
+_gdelt_consecutive_failures = 0
+
 
 class GDELTAdapter(SourceAdapter):
     def __init__(self, source_name: str = "GDELT"):
         self.source_name = source_name
 
     async def fetch(self) -> list[RawArticle]:
+        global _gdelt_backoff_until, _gdelt_consecutive_failures
+
+        # Check if we're in backoff period
+        if _gdelt_backoff_until and datetime.now(timezone.utc) < _gdelt_backoff_until:
+            wait_sec = (_gdelt_backoff_until - datetime.now(timezone.utc)).total_seconds()
+            logger.debug(f"GDELT: in backoff, {wait_sec:.0f}s remaining")
+            return []
+
         params = {
             "query": 'sourcelang:eng (India OR "New Delhi" OR Modi OR Jaishankar) (geopolitics OR diplomacy OR defence OR military OR sanctions OR trade OR bilateral)',
             "mode": "artlist",
@@ -25,14 +38,34 @@ class GDELTAdapter(SourceAdapter):
             "timespan": "60min",
         }
 
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(GDELT_API, params=params)
-                resp.raise_for_status()
-                data = resp.json()
-        except Exception as e:
-            logger.error(f"GDELT fetch failed: {e}")
-            return []
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.get(GDELT_API, params=params)
+                    if resp.status_code == 429:
+                        # Rate limited — exponential backoff
+                        _gdelt_consecutive_failures += 1
+                        backoff_sec = min(60 * (2 ** _gdelt_consecutive_failures), 1800)  # max 30 min
+                        _gdelt_backoff_until = datetime.now(timezone.utc) + timedelta(seconds=backoff_sec)
+                        logger.warning(f"GDELT 429: backing off {backoff_sec}s (attempt {_gdelt_consecutive_failures})")
+                        return []
+                    resp.raise_for_status()
+                    data = resp.json()
+
+                # Success — reset backoff
+                _gdelt_consecutive_failures = 0
+                _gdelt_backoff_until = None
+                break
+            except httpx.HTTPStatusError as e:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                logger.error(f"GDELT fetch failed after {max_retries} retries: {e}")
+                return []
+            except Exception as e:
+                logger.error(f"GDELT fetch failed: {e}")
+                return []
 
         articles_data = data.get("articles", [])
         articles = []

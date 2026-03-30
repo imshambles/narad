@@ -104,6 +104,7 @@ async def briefing_page(
         if country:
             threat_matrix.append({
                 "country": country.name,
+                "country_id": country.id,
                 "cooperation": tm.cooperation_score,
                 "tension": tm.tension_score,
                 "trend": tm.trend,
@@ -116,6 +117,24 @@ async def briefing_page(
     top_entities = [
         {"name": e.name, "type": e.entity_type, "mentions": e.mention_count}
         for e in ent_result.scalars().all()
+    ]
+
+    # Correlation signals (compound cross-domain alerts)
+    corr_result = await session.execute(
+        select(Signal)
+        .where(Signal.signal_type == "correlation")
+        .where(Signal.is_active == True)
+        .order_by(Signal.severity.desc(), Signal.detected_at.desc())
+        .limit(5)
+    )
+    correlations = [
+        {
+            "title": s.title, "severity": s.severity,
+            "description": s.description,
+            "data": _parse_json(s.data_json, default={}),
+            "detected_at": s.detected_at,
+        }
+        for s in corr_result.scalars().all()
     ]
 
     return templates.TemplateResponse(
@@ -135,6 +154,7 @@ async def briefing_page(
             "relationship_insights": relationship_insights,
             "threat_matrix": threat_matrix,
             "top_entities": top_entities,
+            "correlations": correlations,
         },
     )
 

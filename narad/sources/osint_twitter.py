@@ -39,6 +39,14 @@ RSSHUB_INSTANCES = [
     "https://rsshub-instance.zeabur.app",
 ]
 
+# Nitter instances (fallback when RSSHub is down)
+NITTER_INSTANCES = [
+    "https://nitter.privacydev.net",
+    "https://nitter.poast.org",
+    "https://nitter.woodland.cafe",
+    "https://nitter.1d4.us",
+]
+
 
 class OSINTTwitterAdapter(SourceAdapter):
     def __init__(self, source_name: str = "OSINT Twitter"):
@@ -55,58 +63,69 @@ class OSINTTwitterAdapter(SourceAdapter):
         return all_articles
 
     async def _fetch_account(self, display_name: str, handle: str) -> list[RawArticle]:
-        """Try to fetch an account's feed via RSSHub instances."""
+        """Try to fetch an account's feed via RSSHub, then Nitter as fallback."""
+        # Try RSSHub first
         for instance in RSSHUB_INSTANCES:
             url = f"{instance}/twitter/user/{handle}"
-            try:
-                feed = await asyncio.to_thread(feedparser.parse, url)
-                if not feed.entries:
-                    continue
-
-                articles = []
-                for entry in feed.entries[:5]:  # Last 5 tweets per account
-                    title = (entry.get("title") or "").strip()
-                    link = entry.get("link", "").strip()
-                    if not title or not link:
-                        continue
-
-                    # Skip very short tweets (likely retweets or reactions)
-                    if len(title) < 30:
-                        continue
-
-                    published = None
-                    for df in ("published", "updated"):
-                        raw = entry.get(df)
-                        if raw:
-                            try:
-                                published = parse_date(raw)
-                                if published.tzinfo is None:
-                                    published = published.replace(tzinfo=timezone.utc)
-                                break
-                            except (ValueError, TypeError):
-                                continue
-                    if published is None:
-                        published = datetime.now(timezone.utc)
-
-                    # Clean HTML from content
-                    content = entry.get("summary", "") or ""
-                    content = re.sub(r"<[^>]+>", "", content).strip()
-
-                    articles.append(
-                        RawArticle(
-                            title=f"[@{handle}] {title[:200]}",
-                            url=link,
-                            summary=content[:400] if content else None,
-                            published_at=published,
-                            image_url=None,
-                            source_name=f"X/@{handle}",
-                        )
-                    )
-
+            articles = await self._parse_feed(url, handle)
+            if articles:
                 return articles
 
-            except Exception as e:
-                continue  # Try next RSSHub instance
+        # Fallback to Nitter RSS
+        for instance in NITTER_INSTANCES:
+            url = f"{instance}/{handle}/rss"
+            articles = await self._parse_feed(url, handle)
+            if articles:
+                return articles
 
-        # All instances failed — silent fail, don't spam logs
         return []
+
+    async def _parse_feed(self, url: str, handle: str) -> list[RawArticle]:
+        """Parse an RSS feed URL and return articles."""
+        try:
+            feed = await asyncio.to_thread(feedparser.parse, url)
+            if not feed.entries:
+                return []
+
+            articles = []
+            for entry in feed.entries[:5]:
+                title = (entry.get("title") or "").strip()
+                link = entry.get("link", "").strip()
+                if not title or not link:
+                    continue
+
+                if len(title) < 30:
+                    continue
+
+                published = None
+                for df in ("published", "updated"):
+                    raw = entry.get(df)
+                    if raw:
+                        try:
+                            published = parse_date(raw)
+                            if published.tzinfo is None:
+                                published = published.replace(tzinfo=timezone.utc)
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                if published is None:
+                    published = datetime.now(timezone.utc)
+
+                content = entry.get("summary", "") or ""
+                content = re.sub(r"<[^>]+>", "", content).strip()
+
+                articles.append(
+                    RawArticle(
+                        title=f"[@{handle}] {title[:200]}",
+                        url=link,
+                        summary=content[:400] if content else None,
+                        published_at=published,
+                        image_url=None,
+                        source_name=f"X/@{handle}",
+                    )
+                )
+
+            return articles
+
+        except Exception:
+            return []

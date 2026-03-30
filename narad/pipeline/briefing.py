@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from narad.config import settings
 from narad.database import async_session
-from narad.models import Briefing, Event, MarketDataPoint
+from narad.models import Briefing, Event, MarketDataPoint, Signal
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,9 @@ Produce a briefing in this exact JSON format (no markdown, no code fences, just 
         "worst_case": "The pessimistic but plausible outcome for India",
         "historical_parallel": "Name ONE specific historical event that mirrors this situation and what happened then (e.g., 'Similar to the 1973 Oil Crisis when Arab states embargoed oil exports, leading to...')"
       }},
+      "confidence": "high|medium|low",
+      "confidence_reason": "Brief explanation: e.g., '4 wire service sources + GEOINT confirmation' or 'Single source, unverified'",
+      "evidence_chain": ["Source: AP/Reuters/etc report confirms X", "GEOINT: thermal/aircraft data supports Y", "Market: oil moved Z% confirming pressure"],
       "watch_signals": ["Specific observable indicator to watch for, e.g., 'Oil futures crossing $120/barrel'", "Second signal", "Third signal"]
     }}
   ],
@@ -65,6 +68,8 @@ Rules:
 - Scenarios: be SPECIFIC with timeframes, not vague. "Within 48 hours" not "soon". Name actual countries, leaders, institutions.
 - Historical parallels: pick the BEST match from history, not a generic comparison. Explain what happened then in 1 sentence.
 - Watch signals: these must be OBSERVABLE — things someone can actually check. Not opinions, but facts that would confirm a scenario is playing out.
+- Confidence: "high" = 3+ wire sources agree + corroborating data (GEOINT/market). "medium" = 2 sources or reasonable inference. "low" = single source or speculative.
+- Evidence chain: list the specific data points backing each story — source reports, GEOINT signals, market data, entity activity. Be specific.
 - Connections: only genuine causal or entity links. Don't force them.
 - India impact: reference SPECIFIC numbers, routes, treaties, or relationships. Not "India may be affected" but "India imports 85% of its crude oil, 40% through the Strait of Hormuz."
 - Outlook: the strategic assessment should read like advice to a cabinet secretary, not a news anchor.
@@ -134,7 +139,19 @@ async def generate_briefing() -> None:
             if p:
                 market_text += f"{p.name}: ${p.price:.2f} (1d: {p.change_1d:+.1f}%, 7d: {p.change_7d:+.1f}%, 30d: {p.change_30d:+.1f}%)\n"
 
-        prompt = BRIEFING_PROMPT.format(n=len(events), events_list=events_text + market_text)
+        # Gather active intelligence signals for context
+        signals_text = "\n=== ACTIVE INTELLIGENCE SIGNALS ===\n"
+        active_signals = await session.execute(
+            select(Signal)
+            .where(Signal.is_active == True)
+            .where(Signal.signal_type.in_(["correlation", "thermal_anomaly", "aircraft_activity", "spike", "trend_shift"]))
+            .order_by(Signal.severity.desc(), Signal.detected_at.desc())
+            .limit(10)
+        )
+        for sig in active_signals.scalars().all():
+            signals_text += f"[{sig.severity}|{sig.signal_type}] {sig.title}: {sig.description[:150]}\n"
+
+        prompt = BRIEFING_PROMPT.format(n=len(events), events_list=events_text + market_text + signals_text)
 
         # Call Gemini
         try:

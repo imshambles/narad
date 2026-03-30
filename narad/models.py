@@ -210,6 +210,23 @@ class ThreatMatrix(Base):
     )
 
 
+class ThreatMatrixHistory(Base):
+    """Historical snapshots of threat matrix scores for trend analysis."""
+    __tablename__ = "threat_matrix_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    country_entity_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), nullable=False)
+    cooperation_score: Mapped[float] = mapped_column(Float, default=0.0)
+    tension_score: Mapped[float] = mapped_column(Float, default=0.0)
+    trend: Mapped[str] = mapped_column(String, default="stable")
+    snapshot_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    __table_args__ = (
+        Index("idx_tmh_country", "country_entity_id"),
+        Index("idx_tmh_time", "snapshot_at"),
+    )
+
+
 class MarketDataPoint(Base):
     """Commodity prices, forex rates, market indices — hard quantitative data."""
     __tablename__ = "market_data"

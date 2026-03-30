@@ -68,6 +68,11 @@
 <!-- Plot briefing events on map (needs Jinja2 template variables) -->
 <script>
 {% if briefing and stories %}
+// Register briefing stories as a toggleable layer
+const storiesLayer = L.layerGroup().addTo(map);
+mapLayers['stories'] = { layer: storiesLayer, name: 'Briefing Stories', icon: 'circle', color: '#ef4444', on: true };
+if (typeof buildLayerPanel === 'function') buildLayerPanel();
+
 {% for story in stories %}
 (function () {
     const headline = "{{ story.headline | e | lower }}";
@@ -90,7 +95,7 @@
     const marker = L.circleMarker(coords, {
         radius: severity === 'critical' ? 10 : severity === 'developing' ? 7 : 5,
         color: sevColor, fillColor: sevColor, fillOpacity: 0.5, weight: 2, opacity: 0.8
-    }).addTo(map);
+    }).addTo(storiesLayer);
 
     const sevTag = `<span class="tag" style="background:${sevColor}22;color:${sevColor}">` + severity.toUpperCase() + '</span>';
     const catTag = category ? `<span class="tag" style="background:rgba(255,255,255,0.05);color:#9ca3af">${category}</span>` : '';

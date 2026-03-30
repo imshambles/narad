@@ -156,13 +156,14 @@ async def start_scheduler():
     )
 
     from narad.pipeline.briefing import generate_briefing
-    from narad.intel.entity_graph import update_entity_graph
+    from narad.intel.entity_graph import update_entity_graph, merge_duplicate_entities
     from narad.intel.threat_matrix import update_threat_matrix
     from narad.intel.signals import detect_signals
     from narad.intel.analyst import run_intelligence_analysis
     from narad.intel.market_data import fetch_market_data
     from narad.intel.geospatial import fetch_geoint
     from narad.intel.commodity import generate_commodity_signals
+    from narad.intel.correlator import run_correlations
 
     scheduler.add_job(
         generate_briefing, "interval", minutes=30,
@@ -206,6 +207,20 @@ async def start_scheduler():
         generate_commodity_signals, "interval", minutes=30,
         id="commodity", replace_existing=True,
         next_run_time=now + timedelta(minutes=9),
+    )
+
+    # Cross-domain correlation engine
+    scheduler.add_job(
+        run_correlations, "interval", minutes=10,
+        id="correlator", replace_existing=True,
+        next_run_time=now + timedelta(minutes=10),
+    )
+
+    # Entity deduplication — merge near-duplicates periodically
+    scheduler.add_job(
+        merge_duplicate_entities, "interval", hours=6,
+        id="entity_merge", replace_existing=True,
+        next_run_time=now + timedelta(minutes=12),
     )
 
     # Intelligence analyst — runs after entity graph and threat matrix are populated
