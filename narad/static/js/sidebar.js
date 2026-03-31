@@ -1,15 +1,53 @@
 /* sidebar.js — Toggle, story expand, Ask Narad, live update scheduler */
 
+// Responsive sidebar width
+function getSidebarWidth() {
+    if (window.innerWidth <= 768) return '100%';
+    if (window.innerWidth <= 1024) return '320px';
+    return '380px';
+}
+
+function isMobileView() {
+    return window.innerWidth <= 768;
+}
+
 // Sidebar toggle
 document.getElementById('sb-toggle').addEventListener('click', function () {
     const sb = document.getElementById('sidebar');
     sb.classList.toggle('collapsed');
     const isCollapsed = sb.classList.contains('collapsed');
-    this.textContent = isCollapsed ? '\u25B6' : '\u25C0';
-    this.style.right = isCollapsed ? '0px' : '380px';
-    const ticker = document.querySelector('.ticker-bar');
-    if (ticker) ticker.style.right = isCollapsed ? '0' : '380px';
+
+    if (isMobileView()) {
+        // Mobile: toggle is handled by CSS transform
+        this.textContent = isCollapsed ? '\u25B2' : '\u25BC';
+    } else {
+        const w = getSidebarWidth();
+        this.textContent = isCollapsed ? '\u25B6' : '\u25C0';
+        this.style.right = isCollapsed ? '0px' : w;
+        const ticker = document.querySelector('.ticker-bar');
+        if (ticker) ticker.style.right = isCollapsed ? '0' : w;
+        const alertBar = document.querySelector('.alert-bar');
+        if (alertBar) alertBar.style.right = isCollapsed ? '0' : w;
+    }
     setTimeout(() => map.invalidateSize(), 300);
+});
+
+// Update sidebar on resize
+window.addEventListener('resize', function () {
+    const sb = document.getElementById('sidebar');
+    const btn = document.getElementById('sb-toggle');
+    const ticker = document.querySelector('.ticker-bar');
+    const isCollapsed = sb.classList.contains('collapsed');
+
+    if (isMobileView()) {
+        btn.style.right = '';
+        if (ticker) ticker.style.right = '';
+    } else if (!isCollapsed) {
+        const w = getSidebarWidth();
+        btn.style.right = w;
+        if (ticker) ticker.style.right = w;
+    }
+    setTimeout(() => map.invalidateSize(), 100);
 });
 
 // Story expand/collapse
@@ -36,7 +74,7 @@ async function askNarad() {
         let html = `<p class="text-[11px] text-white/50 leading-relaxed mb-1">${data.answer || 'No answer.'}</p>`;
         if (data.follow_up_questions?.length) {
             for (const fq of data.follow_up_questions.slice(0, 2))
-                html += `<button onclick="document.getElementById('query-input').value='${fq.replace(/'/g, "\\'")}';askNarad()" class="block font-mono text-[9px] text-blue-400/30 hover:text-blue-400/60 mt-1">${fq}</button>`;
+                html += `<button onclick="document.getElementById('query-input').value='${fq.replace(/'/g, "\\'")}';askNarad()" class="block font-mono text-[10px] text-blue-400/30 hover:text-blue-400/60 mt-1">${fq}</button>`;
         }
         answer.innerHTML = html;
     } catch (e) {
@@ -88,11 +126,11 @@ function renderWatchlist() {
     const list = getWatchlist();
     if (countEl) countEl.textContent = list.length ? list.length + ' items' : '';
     if (!list.length) {
-        el.innerHTML = '<span class="font-mono text-[8px] text-white/10">Add stocks to track (e.g. HAL, BRENT, ONGC)</span>';
+        el.innerHTML = '<span class="font-mono text-[9px] text-white/10">Add stocks to track (e.g. HAL, BRENT, ONGC)</span>';
         return;
     }
     el.innerHTML = list.map(name =>
-        `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 font-mono text-[8px] text-white/35">
+        `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 font-mono text-[9px] text-white/35">
             ${name}
             <button onclick="removeFromWatchlist('${name.replace(/'/g, "\\'")}')" class="text-white/15 hover:text-red-400 ml-0.5">x</button>
         </span>`

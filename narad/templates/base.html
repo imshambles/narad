@@ -35,34 +35,43 @@
         .glow-amber { box-shadow: 0 0 12px rgba(245,158,11,0.12); }
         .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
         @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        @media (max-width: 640px) { a, button { min-height: 44px; } }
+        /* Mobile touch targets — buttons/links need 44px min, but not nav links in header */
+        @media (max-width: 640px) {
+            main a, main button, .mobile-tap { min-height: 44px; display: inline-flex; align-items: center; }
+        }
+        /* Responsive tables — horizontal scroll on overflow */
+        .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        /* Safe area padding for notched phones */
+        @supports (padding: env(safe-area-inset-bottom)) {
+            body { padding-bottom: env(safe-area-inset-bottom); }
+        }
     </style>
     {% block head %}{% endblock %}
 </head>
 <body class="text-gray-300 min-h-screen font-sans">
     <header class="bg-surface-2/80 backdrop-blur-md border-b border-white/5 sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-11 sm:h-12 flex items-center justify-between">
-            <div class="flex items-center gap-4 sm:gap-6 min-w-0">
+        <div class="max-w-6xl mx-auto px-3 sm:px-6 h-11 sm:h-12 flex items-center justify-between">
+            <div class="flex items-center gap-3 sm:gap-6 min-w-0">
                 <a href="/" class="font-mono text-xs sm:text-sm font-medium tracking-widest text-white/80 flex-shrink-0">NARAD</a>
-                <nav class="flex gap-0.5">
-                    <a href="/" class="px-2 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-mono tracking-wide transition-colors flex items-center {% if active_tab == 'briefing' %}bg-white/10 text-white{% else %}text-white/40 hover:text-white/70{% endif %}">
+                <nav class="flex gap-0.5 overflow-x-auto scroll-hide">
+                    <a href="/" class="px-2 sm:px-2.5 py-1.5 rounded text-[10px] sm:text-xs font-mono tracking-wide transition-colors flex items-center flex-shrink-0 {% if active_tab == 'briefing' %}bg-white/10 text-white{% else %}text-white/40 hover:text-white/70{% endif %}">
                         COMMAND
                     </a>
-                    <a href="/trading" class="px-2 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-mono tracking-wide transition-colors flex items-center {% if active_tab == 'trading' %}bg-white/10 text-white{% else %}text-white/40 hover:text-white/70{% endif %}">
+                    <a href="/trading" class="px-2 sm:px-2.5 py-1.5 rounded text-[10px] sm:text-xs font-mono tracking-wide transition-colors flex items-center flex-shrink-0 {% if active_tab == 'trading' %}bg-white/10 text-white{% else %}text-white/40 hover:text-white/70{% endif %}">
                         TRADING
                     </a>
                 </nav>
             </div>
-            <div class="flex items-center gap-3">
-                <span id="live-badge" class="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-white/30 cursor-default" title="Data updating in real-time">
+            <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                <span id="live-badge" class="flex items-center gap-1 sm:gap-1.5 text-[9px] sm:text-[10px] font-mono text-white/30 cursor-default" title="Data updating in real-time">
                     <span class="w-1.5 h-1.5 rounded-full bg-green-500 pulse-dot"></span>
-                    LIVE
+                    <span class="hidden sm:inline">LIVE</span>
                 </span>
                 <a href="/admin/status" class="text-[10px] font-mono text-white/20 hover:text-white/40 transition-colors hidden sm:block">SYS</a>
             </div>
         </div>
     </header>
-    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-5">
+    <main class="max-w-6xl mx-auto px-3 sm:px-6 py-3 sm:py-5">
         {% block content %}{% endblock %}
     </main>
 </body>

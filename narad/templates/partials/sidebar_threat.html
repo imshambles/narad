@@ -1,10 +1,10 @@
 <!-- sidebar_threat.html — India bilateral relationship matrix with trend indicators -->
 {% if threat_matrix %}
 <div class="sb-panel px-3 py-2">
-    <p class="font-mono text-[9px] text-white/15 mb-1.5">INDIA BILATERAL</p>
+    <p class="font-mono text-[10px] text-white/15 mb-2">INDIA BILATERAL</p>
     {% for entry in threat_matrix %}
-    <div class="flex items-center gap-2 py-0.5 group">
-        <span class="text-[10px] text-white/35 w-14 truncate" title="{{ entry.country }}">{{ entry.country }}</span>
+    <div class="flex items-center gap-2 py-1 group">
+        <span class="text-[11px] text-white/35 w-16 sm:w-14 truncate" title="{{ entry.country }}">{{ entry.country }}</span>
         <div class="flex-1 flex gap-0.5 h-1.5 rounded-full overflow-hidden bg-white/5">
             <div class="bg-green-500/50 rounded-full transition-all duration-500" style="width: {{ (entry.cooperation * 100)|round }}%"></div>
             <div class="flex-1"></div>
@@ -21,16 +21,16 @@
 <!-- Correlation alerts -->
 {% if correlations %}
 <div class="sb-panel px-3 py-2 border-amber-500/15">
-    <p class="font-mono text-[9px] text-amber-400/40 mb-1.5">COMPOUND SIGNALS</p>
+    <p class="font-mono text-[10px] text-amber-400/40 mb-2">COMPOUND SIGNALS</p>
     {% for corr in correlations %}
     <div class="py-1 border-b border-white/5 last:border-0">
         <div class="flex items-center gap-1 mb-0.5">
             <span class="w-1.5 h-1.5 rounded-full {% if corr.severity == 'critical' %}bg-red-500 pulse-dot{% elif corr.severity == 'high' %}bg-amber-500{% else %}bg-white/20{% endif %}"></span>
             <span class="font-mono text-[8px] {% if corr.severity == 'critical' %}text-red-400{% elif corr.severity == 'high' %}text-amber-400{% else %}text-white/25{% endif %}">{{ corr.severity }}</span>
         </div>
-        <p class="text-[10px] text-white/40 leading-snug">{{ corr.title|replace("COMPOUND: ", "") }}</p>
+        <p class="text-[11px] text-white/40 leading-snug">{{ corr.title|replace("COMPOUND: ", "") }}</p>
         {% if corr.data and corr.data.domains %}
-        <p class="font-mono text-[8px] text-white/15 mt-0.5">{{ corr.data.domains|join(' + ')|upper }} ({{ corr.data.factor_count }} factors)</p>
+        <p class="font-mono text-[9px] text-white/15 mt-0.5">{{ corr.data.domains|join(' + ')|upper }} ({{ corr.data.factor_count }} factors)</p>
         {% endif %}
     </div>
     {% endfor %}

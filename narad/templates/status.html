@@ -1,217 +1,154 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="mb-5">
-    <p class="text-sm text-gray-400">Live status of Narad's pipeline — fetching, clustering, AI summarization, and graph building.</p>
+<div class="mb-4">
+    <h1 class="font-mono text-xs sm:text-sm font-medium text-white/70 tracking-wider">SYSTEM STATUS</h1>
+    <p class="font-mono text-[10px] text-white/20 mt-0.5">Pipeline health, source status, and recent activity</p>
 </div>
 
-<!-- ============================================================ -->
-<!-- PIPELINE OVERVIEW                                            -->
-<!-- ============================================================ -->
-<div class="bg-white rounded-lg border border-gray-100 p-5 mb-4">
-    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Pipeline overview</h2>
+<!-- PIPELINE OVERVIEW -->
+<div class="bg-surface-2 rounded-lg border border-white/5 p-4 sm:p-5 mb-4">
+    <h2 class="text-[10px] sm:text-xs font-mono text-white/25 uppercase tracking-wider mb-4">Pipeline overview</h2>
 
-    <!-- Visual pipeline flow -->
-    <div class="flex items-center gap-0 text-sm overflow-x-auto pb-2">
-        <!-- Step 1: Fetch -->
-        <div class="flex-shrink-0 text-center">
-            <div class="w-32 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                <div class="text-2xl font-bold text-emerald-700">{{ total_articles }}</div>
-                <div class="text-[11px] text-emerald-600 font-medium">Articles fetched</div>
-            </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-surface-3 rounded-lg p-3 text-center">
+            <div class="text-xl sm:text-2xl font-bold font-mono text-emerald-400">{{ total_articles }}</div>
+            <div class="text-[10px] sm:text-[11px] text-emerald-400/60 font-mono">Articles fetched</div>
         </div>
-        <div class="flex-shrink-0 px-1 text-gray-300">&rarr;</div>
-
-        <!-- Step 2: Cluster -->
-        <div class="flex-shrink-0 text-center">
-            <div class="w-32 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div class="text-2xl font-bold text-blue-700">{{ total_events }}</div>
-                <div class="text-[11px] text-blue-600 font-medium">Events clustered</div>
-            </div>
+        <div class="bg-surface-3 rounded-lg p-3 text-center">
+            <div class="text-xl sm:text-2xl font-bold font-mono text-blue-400">{{ total_events }}</div>
+            <div class="text-[10px] sm:text-[11px] text-blue-400/60 font-mono">Events clustered</div>
             {% if unclustered > 0 %}
-            <div class="text-[10px] text-amber-500 mt-1">{{ unclustered }} unclustered</div>
+            <div class="text-[9px] text-amber-400/60 mt-0.5">{{ unclustered }} unclustered</div>
             {% endif %}
         </div>
-        <div class="flex-shrink-0 px-1 text-gray-300">&rarr;</div>
-
-        <!-- Step 3: Summarize -->
-        <div class="flex-shrink-0 text-center">
-            <div class="w-32 rounded-lg p-3
-                {% if not gemini_configured %}bg-red-50 border border-red-200
-                {% elif events_summarized > 0 %}bg-purple-50 border border-purple-200
-                {% else %}bg-gray-50 border border-gray-200{% endif %}">
-                <div class="text-2xl font-bold
-                    {% if not gemini_configured %}text-red-700
-                    {% elif events_summarized > 0 %}text-purple-700
-                    {% else %}text-gray-500{% endif %}">
-                    {% if not gemini_configured %}OFF{% else %}{{ events_summarized }}{% endif %}
-                </div>
-                <div class="text-[11px] font-medium
-                    {% if not gemini_configured %}text-red-600
-                    {% elif events_summarized > 0 %}text-purple-600
-                    {% else %}text-gray-400{% endif %}">
-                    {% if not gemini_configured %}No API key{% else %}AI summarized{% endif %}
-                </div>
+        <div class="bg-surface-3 rounded-lg p-3 text-center">
+            <div class="text-xl sm:text-2xl font-bold font-mono {% if not gemini_configured %}text-red-400{% else %}text-purple-400{% endif %}">
+                {% if not gemini_configured %}OFF{% else %}{{ events_summarized }}{% endif %}
+            </div>
+            <div class="text-[10px] sm:text-[11px] font-mono {% if not gemini_configured %}text-red-400/60{% else %}text-purple-400/60{% endif %}">
+                {% if not gemini_configured %}No API key{% else %}AI summarized{% endif %}
             </div>
             {% if events_pending_summary > 0 %}
-            <div class="text-[10px] text-amber-500 mt-1">{{ events_pending_summary }} pending</div>
+            <div class="text-[9px] text-amber-400/60 mt-0.5">{{ events_pending_summary }} pending</div>
             {% endif %}
         </div>
-        <div class="flex-shrink-0 px-1 text-gray-300">&rarr;</div>
-
-        <!-- Step 4: Graph -->
-        <div class="flex-shrink-0 text-center">
-            <div class="w-32 bg-orange-50 border border-orange-200 rounded-lg p-3">
-                <div class="text-2xl font-bold text-orange-700">{{ total_edges }}</div>
-                <div class="text-[11px] text-orange-600 font-medium">Connections found</div>
-            </div>
-            {% if events_with_entities > 0 %}
-            <div class="text-[10px] text-gray-400 mt-1">{{ events_with_entities }} events with entities</div>
-            {% endif %}
+        <div class="bg-surface-3 rounded-lg p-3 text-center">
+            <div class="text-xl sm:text-2xl font-bold font-mono text-orange-400">{{ total_edges }}</div>
+            <div class="text-[10px] sm:text-[11px] text-orange-400/60 font-mono">Connections</div>
         </div>
     </div>
 </div>
 
-<!-- ============================================================ -->
-<!-- GEMINI AI STATUS                                              -->
-<!-- ============================================================ -->
-<div class="bg-white rounded-lg border border-gray-100 p-5 mb-4">
-    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
-        <span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle
-            {% if not gemini_configured %}bg-red-400
-            {% elif events_summarized > 0 %}bg-emerald-400
-            {% else %}bg-amber-400{% endif %}"></span>
-        Gemini AI summarization
+<!-- GEMINI STATUS -->
+{% if gemini_configured %}
+<div class="bg-surface-2 rounded-lg border border-white/5 p-4 sm:p-5 mb-4">
+    <h2 class="text-[10px] sm:text-xs font-mono text-white/25 uppercase tracking-wider mb-3">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1.5 align-middle"></span>
+        Gemini AI
     </h2>
-
-    {% if not gemini_configured %}
-    <div class="bg-red-50 border border-red-100 rounded-md p-4 mb-4">
-        <p class="text-sm text-red-800 font-medium">Gemini API key not configured</p>
-        <p class="text-xs text-red-600 mt-1">Add <code class="bg-red-100 px-1 rounded">GEMINI_API_KEY=your_key</code> to the <code class="bg-red-100 px-1 rounded">.env</code> file and restart the server.</p>
-    </div>
-    {% else %}
-    <div class="grid grid-cols-3 gap-4 mb-4">
-        <div class="bg-emerald-50 rounded-md p-3 text-center">
-            <div class="text-lg font-bold text-emerald-700">{{ events_summarized }}</div>
-            <div class="text-[11px] text-emerald-600">Summarized</div>
-        </div>
-        <div class="bg-amber-50 rounded-md p-3 text-center">
-            <div class="text-lg font-bold text-amber-700">{{ events_pending_summary }}</div>
-            <div class="text-[11px] text-amber-600">Waiting for AI</div>
-        </div>
-        <div class="bg-gray-50 rounded-md p-3 text-center">
-            <div class="text-lg font-bold text-gray-600">{{ total_events - events_summarized }}</div>
-            <div class="text-[11px] text-gray-500">Not eligible yet</div>
-        </div>
-    </div>
-
-    <p class="text-xs text-gray-400 mb-3">Events need 3+ articles from 2+ sources to be summarized. Gemini runs every 10 minutes. Free tier: ~15 requests/minute.</p>
-
+    <p class="text-[10px] sm:text-xs text-white/20 mb-3 font-mono">Events need 3+ articles from 2+ sources. Runs every 10 min.</p>
     {% if recently_summarized %}
-    <h3 class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Recently summarized by AI</h3>
-    <div class="space-y-2">
+    <div class="space-y-1.5">
         {% for event in recently_summarized %}
-        <a href="/events/{{ event.id }}" class="block rounded-md border border-gray-100 p-3 hover:bg-gray-50 transition-colors">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
+        <a href="/events/{{ event.id }}" class="block bg-surface-3 rounded border border-white/4 p-2.5 sm:p-3 hover:border-white/10 transition-colors">
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
                     {% if event.category %}
-                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
-                        {% if event.category == 'conflict' %}bg-red-50 text-red-700
-                        {% elif event.category == 'diplomacy' %}bg-blue-50 text-blue-700
-                        {% elif event.category == 'economy' %}bg-emerald-50 text-emerald-700
-                        {% elif event.category == 'defense' %}bg-orange-50 text-orange-700
-                        {% else %}bg-gray-50 text-gray-600{% endif %}">
-                        {{ event.category }}
-                    </span>
+                    <span class="px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-mono flex-shrink-0
+                        {% if event.category == 'conflict' %}bg-red-500/10 text-red-400
+                        {% elif event.category == 'diplomacy' %}bg-blue-500/10 text-blue-400
+                        {% else %}bg-white/5 text-white/40{% endif %}">{{ event.category }}</span>
                     {% endif %}
-                    <span class="text-sm text-gray-800">{{ event.title }}</span>
+                    <span class="text-xs sm:text-sm text-white/70 truncate">{{ event.title }}</span>
                 </div>
-                <span class="text-[11px] text-gray-400 flex-shrink-0 ml-2">{{ (event.summarized_at|ist).strftime('%I:%M %p') if event.summarized_at }}</span>
+                <span class="text-[10px] text-white/20 font-mono flex-shrink-0">{{ (event.summarized_at|ist).strftime('%I:%M %p') if event.summarized_at }}</span>
             </div>
         </a>
         {% endfor %}
     </div>
     {% endif %}
-    {% endif %}
 </div>
+{% endif %}
 
-<!-- ============================================================ -->
-<!-- SOURCE HEALTH                                                 -->
-<!-- ============================================================ -->
-<div class="bg-white rounded-lg border border-gray-100 p-5 mb-4">
-    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Source health</h2>
+<!-- SOURCE HEALTH -->
+<div class="bg-surface-2 rounded-lg border border-white/5 p-4 sm:p-5 mb-4">
+    <h2 class="text-[10px] sm:text-xs font-mono text-white/25 uppercase tracking-wider mb-4">Source health</h2>
 
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+    <!-- Desktop table -->
+    <div class="hidden sm:block table-wrap">
+        <table class="w-full">
             <thead>
-                <tr class="text-[11px] text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                    <th class="text-left py-2 pr-4 font-medium">Source</th>
-                    <th class="text-left py-2 pr-4 font-medium">Type</th>
-                    <th class="text-right py-2 pr-4 font-medium">Total articles</th>
-                    <th class="text-left py-2 pr-4 font-medium">Last fetch</th>
-                    <th class="text-right py-2 pr-4 font-medium">Found</th>
-                    <th class="text-right py-2 pr-4 font-medium">New</th>
-                    <th class="text-left py-2 font-medium">Status</th>
+                <tr class="text-[10px] text-white/20 uppercase tracking-wider font-mono border-b border-white/5">
+                    <th class="text-left py-2 pr-3">Source</th>
+                    <th class="text-left py-2 pr-3">Type</th>
+                    <th class="text-right py-2 pr-3">Articles</th>
+                    <th class="text-left py-2 pr-3">Last fetch</th>
+                    <th class="text-right py-2 pr-3">Found</th>
+                    <th class="text-right py-2 pr-3">New</th>
+                    <th class="text-left py-2">Status</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="text-xs font-mono">
                 {% for s in source_stats %}
-                <tr class="border-b border-gray-50 last:border-0">
-                    <td class="py-2.5 pr-4 font-medium text-gray-800">{{ s.name }}</td>
-                    <td class="py-2.5 pr-4 text-gray-500">
-                        <span class="px-1.5 py-0.5 bg-gray-50 rounded text-[11px]">{{ s.source_type }}</span>
-                    </td>
-                    <td class="py-2.5 pr-4 text-right text-gray-600">{{ s.article_count }}</td>
-                    <td class="py-2.5 pr-4 text-gray-500 text-[12px]">
-                        {% if s.last_fetched %}{{ (s.last_fetched|ist).strftime('%I:%M:%S %p') }}{% else %}<span class="text-gray-300">never</span>{% endif %}
-                    </td>
-                    <td class="py-2.5 pr-4 text-right text-gray-500">{{ s.last_found }}</td>
-                    <td class="py-2.5 pr-4 text-right text-gray-500">{{ s.last_new }}</td>
-                    <td class="py-2.5">
-                        {% if s.last_status == 'success' %}
-                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400" title="Success"></span>
-                        {% elif s.last_status == 'error' %}
-                        <span class="inline-block w-2 h-2 rounded-full bg-red-400" title="{{ s.last_error or 'Error' }}"></span>
-                        {% else %}
-                        <span class="inline-block w-2 h-2 rounded-full bg-gray-300" title="Never fetched"></span>
-                        {% endif %}
-                        {% if s.last_error %}
-                        <span class="text-[11px] text-red-500 ml-1" title="{{ s.last_error }}">error</span>
-                        {% endif %}
+                <tr class="border-b border-white/3">
+                    <td class="py-2 pr-3 text-white/70">{{ s.name }}</td>
+                    <td class="py-2 pr-3"><span class="px-1.5 py-0.5 bg-white/5 rounded text-[10px] text-white/30">{{ s.source_type }}</span></td>
+                    <td class="py-2 pr-3 text-right text-white/40">{{ s.article_count }}</td>
+                    <td class="py-2 pr-3 text-white/30 text-[11px]">{% if s.last_fetched %}{{ (s.last_fetched|ist).strftime('%I:%M:%S %p') }}{% else %}never{% endif %}</td>
+                    <td class="py-2 pr-3 text-right text-white/30">{{ s.last_found }}</td>
+                    <td class="py-2 pr-3 text-right text-white/30">{{ s.last_new }}</td>
+                    <td class="py-2">
+                        <span class="inline-block w-2 h-2 rounded-full {% if s.last_status == 'success' %}bg-emerald-400{% elif s.last_status == 'error' %}bg-red-400{% else %}bg-white/20{% endif %}"></span>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-</div>
 
-<!-- ============================================================ -->
-<!-- RECENT ACTIVITY LOG                                           -->
-<!-- ============================================================ -->
-<div class="bg-white rounded-lg border border-gray-100 p-5">
-    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Recent activity</h2>
-
-    <div class="space-y-1">
-        {% for log in recent_logs %}
-        <div class="flex items-center gap-3 py-1.5 text-[12px]
-            {% if log.status == 'error' %}text-red-600{% else %}text-gray-500{% endif %}">
-            <span class="w-2 h-2 rounded-full flex-shrink-0
-                {% if log.status == 'success' and log.articles_new > 0 %}bg-emerald-400
-                {% elif log.status == 'success' %}bg-gray-300
-                {% else %}bg-red-400{% endif %}"></span>
-            <span class="w-16 text-gray-400 flex-shrink-0">{{ (log.fetched_at|ist).strftime('%I:%M:%S %p') if log.fetched_at }}</span>
-            <span class="w-32 font-medium text-gray-700 flex-shrink-0">{{ log.source_name }}</span>
-            {% if log.status == 'success' %}
-            <span>found {{ log.articles_found }}, {{ log.articles_new }} new</span>
-            {% else %}
-            <span class="text-red-500">{{ (log.error_msg or 'fetch failed')[:80] }}</span>
+    <!-- Mobile cards -->
+    <div class="sm:hidden space-y-2">
+        {% for s in source_stats %}
+        <div class="bg-surface-3 rounded p-3 border border-white/4">
+            <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs text-white/70 font-mono font-medium">{{ s.name }}</span>
+                <span class="inline-block w-2 h-2 rounded-full {% if s.last_status == 'success' %}bg-emerald-400{% elif s.last_status == 'error' %}bg-red-400{% else %}bg-white/20{% endif %}"></span>
+            </div>
+            <div class="flex items-center justify-between text-[10px] font-mono text-white/30">
+                <span>{{ s.source_type }} | {{ s.article_count }} articles</span>
+                <span>{% if s.last_fetched %}{{ (s.last_fetched|ist).strftime('%I:%M %p') }}{% else %}never{% endif %}</span>
+            </div>
+            {% if s.last_error %}
+            <div class="text-[10px] text-red-400/60 mt-1 truncate">{{ s.last_error[:60] }}</div>
             {% endif %}
         </div>
         {% endfor %}
     </div>
 </div>
 
-<!-- Auto-refresh every 30 seconds -->
+<!-- RECENT ACTIVITY -->
+<div class="bg-surface-2 rounded-lg border border-white/5 p-4 sm:p-5">
+    <h2 class="text-[10px] sm:text-xs font-mono text-white/25 uppercase tracking-wider mb-3">Recent activity</h2>
+
+    <div class="space-y-0.5">
+        {% for log in recent_logs %}
+        <div class="flex items-center gap-2 sm:gap-3 py-1.5 text-[10px] sm:text-[11px] font-mono {% if log.status == 'error' %}text-red-400/70{% else %}text-white/30{% endif %}">
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0
+                {% if log.status == 'success' and log.articles_new > 0 %}bg-emerald-400
+                {% elif log.status == 'success' %}bg-white/15
+                {% else %}bg-red-400{% endif %}"></span>
+            <span class="w-14 sm:w-16 text-white/20 flex-shrink-0">{{ (log.fetched_at|ist).strftime('%I:%M %p') if log.fetched_at }}</span>
+            <span class="w-24 sm:w-32 text-white/40 flex-shrink-0 truncate">{{ log.source_name }}</span>
+            {% if log.status == 'success' %}
+            <span class="truncate">{{ log.articles_found }} found, {{ log.articles_new }} new</span>
+            {% else %}
+            <span class="text-red-400/60 truncate">{{ (log.error_msg or 'failed')[:50] }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
 <script>setTimeout(() => location.reload(), 30000);</script>
 {% endblock %}

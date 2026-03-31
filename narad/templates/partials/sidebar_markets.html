@@ -1,37 +1,37 @@
 <!-- sidebar_markets.html — Watchlist + Markets grid + Trading signals -->
 
 <!-- Watchlist -->
-<div class="sb-panel px-3 py-2">
-    <div class="flex items-center justify-between mb-1">
-        <p class="font-mono text-[9px] text-white/15">WATCHLIST</p>
-        <span id="watchlist-count" class="font-mono text-[8px] text-white/10"></span>
+<div class="sb-panel px-3 py-2.5">
+    <div class="flex items-center justify-between mb-1.5">
+        <p class="font-mono text-[10px] text-white/15">WATCHLIST</p>
+        <span id="watchlist-count" class="font-mono text-[9px] text-white/10"></span>
     </div>
-    <div class="flex items-center gap-1 mb-1">
+    <div class="flex items-center gap-1 mb-1.5">
         <input id="watchlist-input" type="text" placeholder="Add stock or commodity..."
-            class="flex-1 bg-transparent text-[10px] text-white/50 placeholder-white/10 outline-none font-mono"
+            class="flex-1 bg-transparent text-[11px] sm:text-[12px] text-white/50 placeholder-white/10 outline-none font-mono py-1"
             onkeydown="if(event.key==='Enter'){addToWatchlist(this.value);this.value='';}">
     </div>
     <div id="watchlist-items" class="flex flex-wrap gap-1"></div>
 </div>
 
 <!-- Markets grid -->
-<div class="sb-panel px-3 py-2">
-    <div class="flex items-center justify-between mb-1.5">
-        <p class="font-mono text-[9px] text-white/15">MARKETS</p>
-        <span id="market-updated" class="font-mono text-[8px] text-white/10"></span>
+<div class="sb-panel px-3 py-2.5">
+    <div class="flex items-center justify-between mb-2">
+        <p class="font-mono text-[10px] text-white/15">MARKETS</p>
+        <span id="market-updated" class="font-mono text-[9px] text-white/10"></span>
     </div>
-    <div id="market-grid" class="grid grid-cols-2 gap-x-3 gap-y-0.5">
-        <span class="font-mono text-[9px] text-white/10 col-span-2">Loading prices...</span>
+    <div id="market-grid" class="grid grid-cols-2 gap-x-3 gap-y-1">
+        <span class="font-mono text-[10px] text-white/10 col-span-2">Loading prices...</span>
     </div>
 </div>
 
 <!-- Commodity trading signals -->
-<div class="sb-panel px-3 py-2">
-    <div class="flex items-center justify-between mb-1.5">
-        <p class="font-mono text-[9px] text-white/15">TRADING SIGNALS</p>
-        <span id="signal-count" class="font-mono text-[8px] text-white/10"></span>
+<div class="sb-panel px-3 py-2.5">
+    <div class="flex items-center justify-between mb-2">
+        <p class="font-mono text-[10px] text-white/15">TRADING SIGNALS</p>
+        <span id="signal-count" class="font-mono text-[9px] text-white/10"></span>
     </div>
     <div id="commodity-panel">
-        <span class="font-mono text-[9px] text-white/10">Scanning events...</span>
+        <span class="font-mono text-[10px] text-white/10">Scanning events...</span>
     </div>
 </div>

@@ -22,22 +22,19 @@
     bottom: 0;
     z-index: 10;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     background: rgba(10, 10, 15, 0.92);
     backdrop-filter: blur(12px);
     border-left: 1px solid rgba(255, 255, 255, 0.05);
+    transition: transform 0.3s ease;
 }
 
 #sidebar.collapsed {
-    width: 0;
-    border: none;
+    transform: translateX(100%);
 }
 
 #sidebar.collapsed .sb-content {
     display: none;
-}
-
-#sidebar.collapsed #sb-toggle {
-    left: -32px;
 }
 
 .sb-panel {
@@ -45,6 +42,25 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     margin-bottom: 8px;
+}
+
+/* ── Sidebar toggle button ── */
+#sb-toggle {
+    position: fixed;
+    top: 50%;
+    right: 380px;
+    width: 22px;
+    height: 50px;
+    transform: translateY(-50%);
+    z-index: 50;
+    background: rgba(18, 18, 26, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+    cursor: pointer;
+    transition: right 0.3s ease;
 }
 
 /* ── Story expand/collapse ── */
@@ -82,6 +98,7 @@
     color: #9ca3af;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
+    max-width: 90vw;
 }
 
 .leaflet-popup-tip {
@@ -98,7 +115,9 @@
     background: rgba(10, 10, 15, 0.9);
     backdrop-filter: blur(8px);
     border-top: 1px solid rgba(255, 255, 255, 0.05);
-    transition: right 0.2s ease;
+    transition: right 0.3s ease;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* ── Layer control panel ── */
@@ -127,14 +146,18 @@
 .layer-panel input[type="checkbox"] {
     -webkit-appearance: none;
     appearance: none;
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    border-radius: 3px;
     border: 1px solid rgba(255, 255, 255, 0.15);
     background: transparent;
     cursor: pointer;
     flex-shrink: 0;
     position: relative;
+    /* Expand touch target via padding */
+    padding: 0;
+    margin: 4px;
 }
 
 .layer-panel input[type="checkbox"]:checked {
@@ -145,22 +168,13 @@
 .layer-panel input[type="checkbox"]:checked::after {
     content: '';
     position: absolute;
-    top: 1px;
-    left: 3px;
-    width: 3px;
-    height: 5px;
+    top: 2px;
+    left: 4px;
+    width: 4px;
+    height: 7px;
     border: solid #0a0a0f;
-    border-width: 0 1.5px 1.5px 0;
+    border-width: 0 2px 2px 0;
     transform: rotate(45deg);
-}
-
-@media (max-width: 768px) {
-    .layer-panel {
-        top: auto;
-        bottom: 46vh;
-        left: 8px;
-        width: 150px;
-    }
 }
 
 /* ── Shipping lane flow animation ── */
@@ -181,30 +195,135 @@
     right: 380px;
     z-index: 40;
     transform: translateY(-100%);
-    transition: transform 0.3s ease;
+    transition: transform 0.3s ease, right 0.3s ease;
 }
 
 .alert-bar.visible {
     transform: translateY(0);
 }
 
-/* ── Mobile ── */
+/* ═══════════════════════════════════════════
+   TABLET — sidebar narrows
+   ═══════════════════════════════════════════ */
+@media (max-width: 1024px) {
+    #sidebar {
+        width: 320px;
+    }
+    #sb-toggle {
+        right: 320px;
+    }
+    .ticker-bar {
+        right: 320px;
+    }
+    .alert-bar {
+        right: 320px;
+    }
+}
+
+/* ═══════════════════════════════════════════
+   MOBILE — sidebar becomes bottom drawer
+   ═══════════════════════════════════════════ */
 @media (max-width: 768px) {
     #sidebar {
         width: 100%;
         top: auto;
         bottom: 0;
-        height: 45vh;
+        height: 50vh;
+        max-height: 50vh;
         border-left: none;
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px 12px 0 0;
     }
 
     #sidebar.collapsed {
-        height: 40px;
+        transform: translateY(calc(100% - 44px));
+    }
+
+    #sidebar.collapsed .sb-content {
+        display: block; /* keep header visible */
+    }
+
+    /* Toggle becomes a drag handle at top of drawer */
+    #sb-toggle {
+        position: absolute;
+        top: -28px;
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 28px;
+        border-radius: 6px 6px 0 0;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 10px;
     }
 
     .ticker-bar {
         right: 0;
-        bottom: 45vh;
+        bottom: 50vh;
+    }
+
+    #sidebar.collapsed ~ .ticker-bar {
+        bottom: 44px;
+    }
+
+    .alert-bar {
+        right: 0;
+    }
+
+    /* Layer panel repositioned */
+    .layer-panel {
+        top: 52px;
+        left: 8px;
+        width: 140px;
+    }
+
+    .layer-panel.collapsed {
+        width: 60px;
+    }
+
+    /* Smaller popup max-width on mobile */
+    .leaflet-popup-content-wrapper {
+        max-width: calc(100vw - 40px);
+    }
+
+    .leaflet-popup-content {
+        max-width: calc(100vw - 60px) !important;
+    }
+
+    /* Map zoom controls */
+    .leaflet-control-zoom {
+        margin-top: 8px !important;
+        margin-right: 8px !important;
+    }
+}
+
+/* ═══════════════════════════════════════════
+   SMALL PHONES — tighter layout
+   ═══════════════════════════════════════════ */
+@media (max-width: 480px) {
+    #sidebar {
+        height: 55vh;
+        max-height: 55vh;
+    }
+
+    .ticker-bar {
+        bottom: 55vh;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    #sidebar.collapsed ~ .ticker-bar {
+        bottom: 44px;
+    }
+
+    .layer-panel {
+        top: 50px;
+        left: 4px;
+        width: 120px;
+        font-size: 9px;
+    }
+
+    .map-popup {
+        font-size: 10px;
     }
 }

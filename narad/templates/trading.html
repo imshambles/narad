@@ -5,7 +5,7 @@
     .pnl-pos { color: #22c55e; }
     .pnl-neg { color: #ef4444; }
     .pnl-zero { color: #6b7280; }
-    .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.02em; }
     .badge-long { background: rgba(34,197,94,0.15); color: #22c55e; }
     .badge-short { background: rgba(239,68,68,0.15); color: #ef4444; }
     .badge-buy { background: rgba(34,197,94,0.15); color: #22c55e; }
@@ -19,31 +19,58 @@
     .badge-low { background: rgba(107,114,128,0.15); color: #9ca3af; }
     .card { background: #12121a; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; }
     .card-header { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
-    .card-body { padding: 14px; }
-    .stat-value { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .card-body { padding: 12px; }
+    .stat-value { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
     .stat-label { font-size: 10px; color: rgba(255,255,255,0.3); font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; }
-    table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; padding: 6px 10px; font-size: 10px; font-family: 'JetBrains Mono', monospace; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06); }
-    td { padding: 8px 10px; font-size: 12px; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid rgba(255,255,255,0.03); }
-    tr:hover { background: rgba(255,255,255,0.02); }
-    .empty-state { text-align: center; padding: 40px; color: rgba(255,255,255,0.2); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+    .empty-state { text-align: center; padding: 32px 16px; color: rgba(255,255,255,0.2); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+    /* Desktop tables */
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th { text-align: left; padding: 6px 10px; font-size: 10px; font-family: 'JetBrains Mono', monospace; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .data-table td { padding: 8px 10px; font-size: 12px; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .data-table tr:hover { background: rgba(255,255,255,0.02); }
+
+    /* Mobile cards */
+    .mobile-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; padding: 12px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; }
+    .mobile-card-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .mobile-card-row:last-child { margin-bottom: 0; }
+    .mobile-card-label { font-size: 10px; color: rgba(255,255,255,0.25); text-transform: uppercase; }
+    .mobile-card-value { font-size: 12px; color: rgba(255,255,255,0.7); }
+    .mobile-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .mobile-card-symbol { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.85); }
+
+    /* Show tables on desktop, cards on mobile */
+    .desktop-view { display: block; }
+    .mobile-view { display: none; }
+
+    @media (max-width: 768px) {
+        .desktop-view { display: none; }
+        .mobile-view { display: block; }
+        .stat-value { font-size: 16px; }
+        .card-body { padding: 10px; }
+    }
+
+    @media (max-width: 480px) {
+        .stat-value { font-size: 14px; }
+        .stat-label { font-size: 9px; }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="mb-4 flex items-center justify-between">
+<div class="mb-4 flex items-center justify-between flex-wrap gap-2">
     <div>
-        <h1 class="font-mono text-sm font-medium text-white/70 tracking-wider">PAPER TRADING</h1>
+        <h1 class="font-mono text-xs sm:text-sm font-medium text-white/70 tracking-wider">PAPER TRADING</h1>
         <p class="font-mono text-[10px] text-white/20 mt-0.5">Automated signal-driven trading simulator</p>
     </div>
     <div class="flex gap-2">
-        <button onclick="refreshData()" class="px-3 py-1.5 bg-surface-3 border border-white/10 rounded text-[10px] font-mono text-white/40 hover:text-white/70 transition-colors">REFRESH</button>
-        <button onclick="resetAccount()" class="px-3 py-1.5 bg-surface-3 border border-red-500/20 rounded text-[10px] font-mono text-red-400/60 hover:text-red-400 transition-colors">RESET</button>
+        <button onclick="refreshData()" class="px-3 py-2 bg-surface-3 border border-white/10 rounded text-[10px] sm:text-[11px] font-mono text-white/40 hover:text-white/70 transition-colors">REFRESH</button>
+        <button onclick="resetAccount()" class="px-3 py-2 bg-surface-3 border border-red-500/20 rounded text-[10px] sm:text-[11px] font-mono text-red-400/60 hover:text-red-400 transition-colors">RESET</button>
     </div>
 </div>
 
-<!-- ── ACCOUNT OVERVIEW ── -->
-<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4" id="account-stats">
+<!-- ACCOUNT OVERVIEW -->
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-3 sm:mb-4" id="account-stats">
     <div class="card card-body">
         <div class="stat-label">Capital</div>
         <div class="stat-value text-white/80" id="stat-capital">--</div>
@@ -70,8 +97,8 @@
     </div>
 </div>
 
-<!-- ── P&L SUMMARY ── -->
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+<!-- P&L SUMMARY -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4 sm:mb-5">
     <div class="card card-body">
         <div class="stat-label">Unrealized P&L</div>
         <div class="stat-value text-sm" id="stat-upnl">--</div>
@@ -90,33 +117,33 @@
     </div>
 </div>
 
-<!-- ── OPEN POSITIONS ── -->
-<div class="card mb-4">
+<!-- OPEN POSITIONS -->
+<div class="card mb-3 sm:mb-4">
     <div class="card-header flex items-center justify-between">
-        <span class="font-mono text-[10px] text-white/25 tracking-wider">OPEN POSITIONS</span>
+        <span class="font-mono text-[10px] sm:text-[11px] text-white/25 tracking-wider">OPEN POSITIONS</span>
         <span class="font-mono text-[10px] text-white/15" id="pos-count">0</span>
     </div>
-    <div class="card-body overflow-x-auto" id="positions-table">
+    <div class="card-body" id="positions-container">
         <div class="empty-state">No open positions</div>
     </div>
 </div>
 
-<!-- ── RECENT TRADES ── -->
-<div class="card mb-4">
+<!-- CLOSED TRADES -->
+<div class="card mb-3 sm:mb-4">
     <div class="card-header">
-        <span class="font-mono text-[10px] text-white/25 tracking-wider">CLOSED TRADES</span>
+        <span class="font-mono text-[10px] sm:text-[11px] text-white/25 tracking-wider">CLOSED TRADES</span>
     </div>
-    <div class="card-body overflow-x-auto" id="trades-table">
+    <div class="card-body" id="trades-container">
         <div class="empty-state">No closed trades yet</div>
     </div>
 </div>
 
-<!-- ── ORDER HISTORY ── -->
+<!-- ORDER HISTORY -->
 <div class="card mb-4">
     <div class="card-header">
-        <span class="font-mono text-[10px] text-white/25 tracking-wider">ORDER HISTORY</span>
+        <span class="font-mono text-[10px] sm:text-[11px] text-white/25 tracking-wider">ORDER HISTORY</span>
     </div>
-    <div class="card-body overflow-x-auto" id="orders-table">
+    <div class="card-body" id="orders-container">
         <div class="empty-state">No orders yet</div>
     </div>
 </div>
@@ -125,6 +152,7 @@
 const fmt = (n, d=0) => n != null ? Number(n).toLocaleString('en-IN', {maximumFractionDigits: d}) : '--';
 const pnlClass = n => n > 0 ? 'pnl-pos' : n < 0 ? 'pnl-neg' : 'pnl-zero';
 const pnlSign = n => n > 0 ? '+' : '';
+const isMobile = () => window.innerWidth <= 768;
 
 function toIST(dt) {
     if (!dt) return '--';
@@ -177,13 +205,51 @@ function renderPortfolio(data) {
     document.getElementById('stat-trades').textContent = p.total_trades;
     document.getElementById('stat-wl').textContent = p.wins + ' / ' + p.losses;
 
-    // Positions table
-    const positions = data.positions || [];
+    renderPositions(data.positions || []);
+    renderTrades(data.recent_trades || []);
+}
+
+function renderPositions(positions) {
+    const container = document.getElementById('positions-container');
     document.getElementById('pos-count').textContent = positions.length;
+
     if (positions.length === 0) {
-        document.getElementById('positions-table').innerHTML = '<div class="empty-state">No open positions</div>';
+        container.innerHTML = '<div class="empty-state">No open positions</div>';
+        return;
+    }
+
+    if (isMobile()) {
+        container.innerHTML = positions.map(p => {
+            const sideClass = p.side === 'LONG' ? 'badge-long' : 'badge-short';
+            return `<div class="mobile-card">
+                <div class="mobile-card-header">
+                    <span class="mobile-card-symbol">${p.symbol} <span class="badge ${sideClass}">${p.side}</span></span>
+                    <button onclick="closePosition(${p.id})" class="badge badge-stop px-2 py-1">CLOSE</button>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Qty</span>
+                    <span class="mobile-card-value">${p.quantity}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Entry / Current</span>
+                    <span class="mobile-card-value">${fmt(p.avg_entry, 2)} / ${fmt(p.current_price, 2)}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">P&L</span>
+                    <span class="mobile-card-value ${pnlClass(p.unrealized_pnl)}">${pnlSign(p.unrealized_pnl)}${fmt(p.unrealized_pnl)} (${pnlSign(p.unrealized_pnl_pct)}${fmt(p.unrealized_pnl_pct,1)}%)</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">SL / TP</span>
+                    <span class="mobile-card-value"><span class="text-red-400/60">${p.stop_loss ? fmt(p.stop_loss, 2) : '--'}</span> / <span class="text-green-400/60">${p.take_profit ? fmt(p.take_profit, 2) : '--'}</span></span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Opened</span>
+                    <span class="mobile-card-value" style="font-size:10px;color:rgba(255,255,255,0.3)">${toIST(p.opened_at)}</span>
+                </div>
+            </div>`;
+        }).join('');
     } else {
-        let html = '<table><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th>SL</th><th>TP</th><th>Opened</th><th></th></tr></thead><tbody>';
+        let html = '<div class="overflow-x-auto"><table class="data-table"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th>SL</th><th>TP</th><th>Opened</th><th></th></tr></thead><tbody>';
         for (const p of positions) {
             const sideClass = p.side === 'LONG' ? 'badge-long' : 'badge-short';
             html += `<tr>
@@ -199,19 +265,48 @@ function renderPortfolio(data) {
                 <td><button onclick="closePosition(${p.id})" class="text-[10px] text-red-400/50 hover:text-red-400 font-mono">CLOSE</button></td>
             </tr>`;
         }
-        html += '</tbody></table>';
-        document.getElementById('positions-table').innerHTML = html;
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
+}
+
+function renderTrades(trades) {
+    const container = document.getElementById('trades-container');
+
+    if (trades.length === 0) {
+        container.innerHTML = '<div class="empty-state">No closed trades yet</div>';
+        return;
     }
 
-    // Trades table
-    const trades = data.recent_trades || [];
-    if (trades.length === 0) {
-        document.getElementById('trades-table').innerHTML = '<div class="empty-state">No closed trades yet</div>';
+    const reasonMap = {stop_loss:'badge-stop', take_profit:'badge-tp', manual:'badge-manual', signal_expired:'badge-low'};
+
+    if (isMobile()) {
+        container.innerHTML = trades.map(t => {
+            const sideClass = t.side === 'LONG' ? 'badge-long' : 'badge-short';
+            const reasonClass = reasonMap[t.close_reason] || 'badge-low';
+            return `<div class="mobile-card">
+                <div class="mobile-card-header">
+                    <span class="mobile-card-symbol">${t.symbol} <span class="badge ${sideClass}">${t.side}</span></span>
+                    <span class="badge ${reasonClass}">${t.close_reason}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Entry / Exit</span>
+                    <span class="mobile-card-value">${fmt(t.entry_price, 2)} / ${fmt(t.exit_price, 2)}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">P&L</span>
+                    <span class="mobile-card-value ${pnlClass(t.realized_pnl)}" style="font-size:14px;font-weight:600">${pnlSign(t.realized_pnl)}${fmt(t.realized_pnl)} (${pnlSign(t.realized_pnl_pct)}${fmt(t.realized_pnl_pct,1)}%)</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Closed</span>
+                    <span class="mobile-card-value" style="font-size:10px;color:rgba(255,255,255,0.3)">${toIST(t.closed_at)}</span>
+                </div>
+            </div>`;
+        }).join('');
     } else {
-        let html = '<table><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Reason</th><th>Signal</th><th>Closed</th></tr></thead><tbody>';
+        let html = '<div class="overflow-x-auto"><table class="data-table"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Reason</th><th>Signal</th><th>Closed</th></tr></thead><tbody>';
         for (const t of trades) {
             const sideClass = t.side === 'LONG' ? 'badge-long' : 'badge-short';
-            const reasonMap = {stop_loss:'badge-stop', take_profit:'badge-tp', manual:'badge-manual'};
             const reasonClass = reasonMap[t.close_reason] || 'badge-low';
             html += `<tr>
                 <td class="text-white/80 font-medium">${t.symbol}</td>
@@ -225,35 +320,68 @@ function renderPortfolio(data) {
                 <td class="text-white/20">${toIST(t.closed_at)}</td>
             </tr>`;
         }
-        html += '</tbody></table>';
-        document.getElementById('trades-table').innerHTML = html;
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
     }
 }
 
 function renderOrders(orders) {
+    const container = document.getElementById('orders-container');
+
     if (!orders || orders.length === 0) {
-        document.getElementById('orders-table').innerHTML = '<div class="empty-state">No orders yet</div>';
+        container.innerHTML = '<div class="empty-state">No orders yet</div>';
         return;
     }
-    let html = '<table><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Fill Price</th><th>Conviction</th><th>Size %</th><th>SL</th><th>TP</th><th>Reason</th><th>Time</th></tr></thead><tbody>';
-    for (const o of orders) {
-        const sideClass = o.side === 'BUY' ? 'badge-buy' : 'badge-sell';
-        const convClass = {high:'badge-high', medium:'badge-medium', low:'badge-low'}[o.conviction] || 'badge-low';
-        html += `<tr>
-            <td class="text-white/80 font-medium">${o.symbol}</td>
-            <td><span class="badge ${sideClass}">${o.side}</span></td>
-            <td>${o.quantity}</td>
-            <td>${o.fill_price ? fmt(o.fill_price, 2) : '--'}</td>
-            <td><span class="badge ${convClass}">${o.conviction}</span></td>
-            <td>${fmt(o.position_size_pct, 1)}%</td>
-            <td class="text-red-400/60">${o.stop_loss ? fmt(o.stop_loss, 2) : '--'}</td>
-            <td class="text-green-400/60">${o.take_profit ? fmt(o.take_profit, 2) : '--'}</td>
-            <td class="text-white/30 text-[10px]" title="${o.notes || ''}">${(o.notes || '--').substring(0, 40)}</td>
-            <td class="text-white/20">${toIST(o.filled_at || o.created_at)}</td>
-        </tr>`;
+
+    if (isMobile()) {
+        container.innerHTML = orders.map(o => {
+            const sideClass = o.side === 'BUY' ? 'badge-buy' : 'badge-sell';
+            const convClass = {high:'badge-high', medium:'badge-medium', low:'badge-low'}[o.conviction] || 'badge-low';
+            return `<div class="mobile-card">
+                <div class="mobile-card-header">
+                    <span class="mobile-card-symbol">${o.symbol} <span class="badge ${sideClass}">${o.side}</span></span>
+                    <span class="badge ${convClass}">${o.conviction}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Price / Qty</span>
+                    <span class="mobile-card-value">${o.fill_price ? fmt(o.fill_price, 2) : '--'} x ${o.quantity}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Size</span>
+                    <span class="mobile-card-value">${fmt(o.position_size_pct, 1)}%</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">SL / TP</span>
+                    <span class="mobile-card-value"><span class="text-red-400/60">${o.stop_loss ? fmt(o.stop_loss, 2) : '--'}</span> / <span class="text-green-400/60">${o.take_profit ? fmt(o.take_profit, 2) : '--'}</span></span>
+                </div>
+                ${o.notes ? `<div class="mobile-card-row"><span class="mobile-card-label">Reason</span><span class="mobile-card-value" style="font-size:10px;max-width:60%;text-align:right">${o.notes.substring(0, 60)}</span></div>` : ''}
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Time</span>
+                    <span class="mobile-card-value" style="font-size:10px;color:rgba(255,255,255,0.3)">${toIST(o.filled_at || o.created_at)}</span>
+                </div>
+            </div>`;
+        }).join('');
+    } else {
+        let html = '<div class="overflow-x-auto"><table class="data-table"><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Fill Price</th><th>Conviction</th><th>Size %</th><th>SL</th><th>TP</th><th>Reason</th><th>Time</th></tr></thead><tbody>';
+        for (const o of orders) {
+            const sideClass = o.side === 'BUY' ? 'badge-buy' : 'badge-sell';
+            const convClass = {high:'badge-high', medium:'badge-medium', low:'badge-low'}[o.conviction] || 'badge-low';
+            html += `<tr>
+                <td class="text-white/80 font-medium">${o.symbol}</td>
+                <td><span class="badge ${sideClass}">${o.side}</span></td>
+                <td>${o.quantity}</td>
+                <td>${o.fill_price ? fmt(o.fill_price, 2) : '--'}</td>
+                <td><span class="badge ${convClass}">${o.conviction}</span></td>
+                <td>${fmt(o.position_size_pct, 1)}%</td>
+                <td class="text-red-400/60">${o.stop_loss ? fmt(o.stop_loss, 2) : '--'}</td>
+                <td class="text-green-400/60">${o.take_profit ? fmt(o.take_profit, 2) : '--'}</td>
+                <td class="text-white/30 text-[10px]" title="${o.notes || ''}">${(o.notes || '--').substring(0, 40)}</td>
+                <td class="text-white/20">${toIST(o.filled_at || o.created_at)}</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
     }
-    html += '</tbody></table>';
-    document.getElementById('orders-table').innerHTML = html;
 }
 
 async function closePosition(id) {
@@ -270,9 +398,15 @@ async function resetAccount() {
     refreshData();
 }
 
-// Initial load
+// Re-render on resize (switch between table/card layout)
+let resizeTimer;
+window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(refreshData, 250);
+});
+
+// Initial load + auto-refresh
 refreshData();
-// Auto-refresh every 60s
 setInterval(refreshData, 60000);
 </script>
 {% endblock %}
