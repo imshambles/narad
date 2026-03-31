@@ -259,3 +259,22 @@ async def run_correlations() -> None:
         if correlations_found:
             await session.commit()
             logger.info(f"Correlator: {correlations_found} compound signals detected")
+
+            # Send Telegram alerts and execute paper trades for correlation signals
+            try:
+                from narad.intel.alerts import send_alert_batch
+                new_signals_result = await session.execute(
+                    select(Signal)
+                    .where(Signal.signal_type == "correlation")
+                    .where(Signal.is_active == True)
+                    .where(Signal.detected_at >= now - timedelta(minutes=2))
+                )
+                new_signals = list(new_signals_result.scalars().all())
+                await send_alert_batch(new_signals)
+
+                # Execute paper trades
+                from narad.intel.trader import execute_signal_trades
+                for sig in new_signals:
+                    await execute_signal_trades(sig)
+            except Exception as e:
+                logger.debug(f"Alert/trade dispatch failed: {e}")

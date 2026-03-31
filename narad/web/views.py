@@ -417,6 +417,17 @@ async def graph_page(
 
 
 # ──────────────────────────────────────────────
+# /trading  — Paper trading dashboard
+# ──────────────────────────────────────────────
+@router.get("/trading")
+async def trading_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    return templates.TemplateResponse(request, "trading.html", {"active_tab": "trading"})
+
+
+# ──────────────────────────────────────────────
 # /admin/status  — Pipeline status (admin)
 # ──────────────────────────────────────────────
 @router.get("/admin/status")

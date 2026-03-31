@@ -230,6 +230,33 @@ async def list_signals(
     ]
 
 
+@router.get("/intel/backtest")
+async def get_backtest_results():
+    """Get signal backtest statistics — hit rates, accuracy by rule, recent outcomes."""
+    from narad.intel.backtest import get_backtest_summary
+    return await get_backtest_summary()
+
+
+@router.post("/intel/backtest/run")
+async def run_backtest_now():
+    """Manually trigger backtest evaluation of past signals."""
+    from narad.intel.backtest import evaluate_signals
+    await evaluate_signals()
+    from narad.intel.backtest import get_backtest_summary
+    return await get_backtest_summary()
+
+
+@router.post("/intel/alerts/test")
+async def test_telegram_alert():
+    """Send a test alert to verify Telegram integration."""
+    from narad.intel.alerts import send_telegram
+    success = await send_telegram(
+        "[TEST] Narad alert system active.\n"
+        "You will receive trading signals here when high-conviction signals fire."
+    )
+    return {"sent": success, "message": "Check your Telegram" if success else "Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env"}
+
+
 @router.get("/intel/entity-graph")
 async def get_entity_graph(
     min_mentions: int = Query(3),

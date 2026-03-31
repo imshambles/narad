@@ -106,6 +106,98 @@ async def fetch_market_data() -> None:
         logger.info(f"Market data: fetched {fetched}/{len(TRACKED_SYMBOLS)} symbols")
 
 
+# Map stock names used in commodity signals → Yahoo Finance tickers
+NSE_TICKER_MAP = {
+    # Defence
+    "HAL": "HAL.NS",
+    "BEL": "BEL.NS",
+    "BDL": "BDL.NS",
+    "Paras Defence": "PARAS.NS",
+    "Data Patterns": "DATAPATTNS.NS",
+    # Oil & Gas
+    "ONGC": "ONGC.NS",
+    "Oil India": "OIL.NS",
+    "IOC": "IOC.NS",
+    "BPCL": "BPCL.NS",
+    "HPCL": "HINDPETRO.NS",
+    "Reliance Industries": "RELIANCE.NS",
+    "Reliance": "RELIANCE.NS",
+    "Coal India": "COALINDIA.NS",
+    # Shipping / Maritime
+    "SCI": "SCI.NS",
+    "SCI (Shipping Corp)": "SCI.NS",
+    "Cochin Shipyard": "COCHINSHIP.NS",
+    "Mazagon Dock": "MAZDOCK.NS",
+    # Airlines
+    "IndiGo": "INDIGO.NS",
+    "SpiceJet": "SPICEJET.NS",
+    # Tyres
+    "MRF": "MRF.NS",
+    "Apollo Tyres": "APOLLOTYRE.NS",
+    # Paints
+    "Asian Paints": "ASIANPAINT.NS",
+    "Berger": "BERGEPAINT.NS",
+    # IT
+    "TCS": "TCS.NS",
+    "Infosys": "INFY.NS",
+    # FMCG
+    "ITC": "ITC.NS",
+    # Indices + Commodities (already tracked, keep for completeness)
+    "^NSEI": "^NSEI",
+    "^BSESN": "^BSESN",
+    "BZ=F": "BZ=F",
+    "CL=F": "CL=F",
+    "GC=F": "GC=F",
+    "NG=F": "NG=F",
+    "ZW=F": "ZW=F",
+    "INR=X": "INR=X",
+}
+
+
+def resolve_ticker(stock_name: str) -> str | None:
+    """Resolve a stock name from commodity signals to a Yahoo Finance ticker."""
+    # Direct match
+    if stock_name in NSE_TICKER_MAP:
+        return NSE_TICKER_MAP[stock_name]
+    # Already a ticker (has . or = or ^)
+    if any(c in stock_name for c in ".=^"):
+        return stock_name
+    # Try partial match (e.g., "IOC / BPCL / HPCL" → first match)
+    for key, ticker in NSE_TICKER_MAP.items():
+        if key in stock_name:
+            return ticker
+    return None
+
+
+def get_exchange(ticker: str) -> str:
+    """Determine exchange from ticker format."""
+    if ticker.endswith(".NS") or ticker.endswith(".BO"):
+        return "NSE"
+    elif ticker.startswith("^"):
+        return "INDEX"
+    elif "=F" in ticker:
+        return "MCX"
+    elif "=X" in ticker:
+        return "FOREX"
+    return "GLOBAL"
+
+
+async def fetch_single_price(symbol: str) -> float | None:
+    """Fetch current price for a single symbol. Used by paper trading engine."""
+    try:
+        async with httpx.AsyncClient(timeout=10, headers=YF_HEADERS) as client:
+            resp = await client.get(
+                f"{YF_BASE}/{symbol}",
+                params={"interval": "1d", "range": "1d"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["chart"]["result"][0]["meta"]["regularMarketPrice"]
+    except Exception as e:
+        logger.debug(f"Price fetch failed for {symbol}: {e}")
+        return None
+
+
 async def get_latest_prices() -> dict:
     """Get the most recent price for each tracked symbol."""
     async with async_session() as session:

@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    .pnl-pos { color: #22c55e; }
+    .pnl-neg { color: #ef4444; }
+    .pnl-zero { color: #6b7280; }
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
+    .badge-long { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .badge-short { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .badge-buy { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .badge-sell { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .badge-filled { background: rgba(59,130,246,0.15); color: #3b82f6; }
+    .badge-stop { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .badge-tp { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .badge-manual { background: rgba(168,85,247,0.15); color: #a855f7; }
+    .badge-high { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .badge-medium { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .badge-low { background: rgba(107,114,128,0.15); color: #9ca3af; }
+    .card { background: #12121a; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; }
+    .card-header { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .card-body { padding: 14px; }
+    .stat-value { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .stat-label { font-size: 10px; color: rgba(255,255,255,0.3); font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 6px 10px; font-size: 10px; font-family: 'JetBrains Mono', monospace; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    td { padding: 8px 10px; font-size: 12px; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    tr:hover { background: rgba(255,255,255,0.02); }
+    .empty-state { text-align: center; padding: 40px; color: rgba(255,255,255,0.2); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex items-center justify-between">
+    <div>
+        <h1 class="font-mono text-sm font-medium text-white/70 tracking-wider">PAPER TRADING</h1>
+        <p class="font-mono text-[10px] text-white/20 mt-0.5">Automated signal-driven trading simulator</p>
+    </div>
+    <div class="flex gap-2">
+        <button onclick="refreshData()" class="px-3 py-1.5 bg-surface-3 border border-white/10 rounded text-[10px] font-mono text-white/40 hover:text-white/70 transition-colors">REFRESH</button>
+        <button onclick="resetAccount()" class="px-3 py-1.5 bg-surface-3 border border-red-500/20 rounded text-[10px] font-mono text-red-400/60 hover:text-red-400 transition-colors">RESET</button>
+    </div>
+</div>
+
+<!-- ── ACCOUNT OVERVIEW ── -->
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4" id="account-stats">
+    <div class="card card-body">
+        <div class="stat-label">Capital</div>
+        <div class="stat-value text-white/80" id="stat-capital">--</div>
+    </div>
+    <div class="card card-body">
+        <div class="stat-label">Cash</div>
+        <div class="stat-value text-white/60" id="stat-cash">--</div>
+    </div>
+    <div class="card card-body">
+        <div class="stat-label">Deployed</div>
+        <div class="stat-value text-blue-400/80" id="stat-deployed">--</div>
+    </div>
+    <div class="card card-body">
+        <div class="stat-label">Total Return</div>
+        <div class="stat-value" id="stat-return">--</div>
+    </div>
+    <div class="card card-body">
+        <div class="stat-label">Win Rate</div>
+        <div class="stat-value text-white/70" id="stat-winrate">--</div>
+    </div>
+    <div class="card card-body">
+        <div class="stat-label">Profit Factor</div>
+        <div class="stat-value text-white/70" id="stat-pf">--</div>
+    </div>
+</div>
+
+<!-- ── P&L SUMMARY ── -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+    <div class="card card-body">
+        <div class="stat-label">Unrealized P&L</div>
+        <div class="stat-value text-sm" id="stat-upnl">--</div>
+    </div>
+    <div class="card card-body">
+        <div class="stat-label">Realized P&L</div>
+        <div class="stat-value text-sm" id="stat-rpnl">--</div>
+    </div>
+    <div class="card card-body">
+        <div class="stat-label">Total Trades</div>
+        <div class="stat-value text-sm text-white/60" id="stat-trades">--</div>
+    </div>
+    <div class="card card-body">
+        <div class="stat-label">Wins / Losses</div>
+        <div class="stat-value text-sm text-white/60" id="stat-wl">--</div>
+    </div>
+</div>
+
+<!-- ── OPEN POSITIONS ── -->
+<div class="card mb-4">
+    <div class="card-header flex items-center justify-between">
+        <span class="font-mono text-[10px] text-white/25 tracking-wider">OPEN POSITIONS</span>
+        <span class="font-mono text-[10px] text-white/15" id="pos-count">0</span>
+    </div>
+    <div class="card-body overflow-x-auto" id="positions-table">
+        <div class="empty-state">No open positions</div>
+    </div>
+</div>
+
+<!-- ── RECENT TRADES ── -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="font-mono text-[10px] text-white/25 tracking-wider">CLOSED TRADES</span>
+    </div>
+    <div class="card-body overflow-x-auto" id="trades-table">
+        <div class="empty-state">No closed trades yet</div>
+    </div>
+</div>
+
+<!-- ── ORDER HISTORY ── -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="font-mono text-[10px] text-white/25 tracking-wider">ORDER HISTORY</span>
+    </div>
+    <div class="card-body overflow-x-auto" id="orders-table">
+        <div class="empty-state">No orders yet</div>
+    </div>
+</div>
+
+<script>
+const fmt = (n, d=0) => n != null ? Number(n).toLocaleString('en-IN', {maximumFractionDigits: d}) : '--';
+const pnlClass = n => n > 0 ? 'pnl-pos' : n < 0 ? 'pnl-neg' : 'pnl-zero';
+const pnlSign = n => n > 0 ? '+' : '';
+
+function toIST(dt) {
+    if (!dt) return '--';
+    const d = new Date(dt);
+    return d.toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+}
+
+async function refreshData() {
+    try {
+        const [portfolio, orders] = await Promise.all([
+            fetch('/api/trading/portfolio').then(r => r.json()),
+            fetch('/api/trading/orders?limit=30').then(r => r.json()),
+        ]);
+        renderPortfolio(portfolio);
+        renderOrders(orders);
+    } catch(e) {
+        console.error('Refresh failed:', e);
+    }
+}
+
+function renderPortfolio(data) {
+    if (data.status === 'no_account') {
+        document.getElementById('stat-capital').textContent = 'NOT ACTIVE';
+        document.getElementById('stat-capital').style.fontSize = '14px';
+        return;
+    }
+
+    const a = data.account || {};
+    const p = data.performance || {};
+
+    document.getElementById('stat-capital').textContent = fmt(a.initial_capital);
+    document.getElementById('stat-cash').textContent = fmt(a.current_cash);
+    document.getElementById('stat-deployed').textContent = fmt(a.deployed);
+
+    const retEl = document.getElementById('stat-return');
+    retEl.textContent = pnlSign(a.total_return) + fmt(a.total_return) + ' (' + pnlSign(a.total_return_pct) + fmt(a.total_return_pct, 1) + '%)';
+    retEl.className = 'stat-value text-sm ' + pnlClass(a.total_return);
+
+    document.getElementById('stat-winrate').textContent = fmt(p.win_rate, 1) + '%';
+    document.getElementById('stat-pf').textContent = p.profit_factor === 'inf' ? 'INF' : fmt(p.profit_factor, 2);
+
+    const upnlEl = document.getElementById('stat-upnl');
+    upnlEl.textContent = pnlSign(data.unrealized_pnl) + fmt(data.unrealized_pnl);
+    upnlEl.className = 'stat-value text-sm ' + pnlClass(data.unrealized_pnl);
+
+    const rpnlEl = document.getElementById('stat-rpnl');
+    rpnlEl.textContent = pnlSign(data.realized_pnl) + fmt(data.realized_pnl);
+    rpnlEl.className = 'stat-value text-sm ' + pnlClass(data.realized_pnl);
+
+    document.getElementById('stat-trades').textContent = p.total_trades;
+    document.getElementById('stat-wl').textContent = p.wins + ' / ' + p.losses;
+
+    // Positions table
+    const positions = data.positions || [];
+    document.getElementById('pos-count').textContent = positions.length;
+    if (positions.length === 0) {
+        document.getElementById('positions-table').innerHTML = '<div class="empty-state">No open positions</div>';
+    } else {
+        let html = '<table><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th>SL</th><th>TP</th><th>Opened</th><th></th></tr></thead><tbody>';
+        for (const p of positions) {
+            const sideClass = p.side === 'LONG' ? 'badge-long' : 'badge-short';
+            html += `<tr>
+                <td class="text-white/80 font-medium">${p.symbol}</td>
+                <td><span class="badge ${sideClass}">${p.side}</span></td>
+                <td>${p.quantity}</td>
+                <td>${fmt(p.avg_entry, 2)}</td>
+                <td>${fmt(p.current_price, 2)}</td>
+                <td class="${pnlClass(p.unrealized_pnl)}">${pnlSign(p.unrealized_pnl)}${fmt(p.unrealized_pnl)} (${pnlSign(p.unrealized_pnl_pct)}${fmt(p.unrealized_pnl_pct,1)}%)</td>
+                <td class="text-red-400/60">${p.stop_loss ? fmt(p.stop_loss, 2) : '--'}</td>
+                <td class="text-green-400/60">${p.take_profit ? fmt(p.take_profit, 2) : '--'}</td>
+                <td class="text-white/20">${toIST(p.opened_at)}</td>
+                <td><button onclick="closePosition(${p.id})" class="text-[10px] text-red-400/50 hover:text-red-400 font-mono">CLOSE</button></td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+        document.getElementById('positions-table').innerHTML = html;
+    }
+
+    // Trades table
+    const trades = data.recent_trades || [];
+    if (trades.length === 0) {
+        document.getElementById('trades-table').innerHTML = '<div class="empty-state">No closed trades yet</div>';
+    } else {
+        let html = '<table><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Reason</th><th>Signal</th><th>Closed</th></tr></thead><tbody>';
+        for (const t of trades) {
+            const sideClass = t.side === 'LONG' ? 'badge-long' : 'badge-short';
+            const reasonMap = {stop_loss:'badge-stop', take_profit:'badge-tp', manual:'badge-manual'};
+            const reasonClass = reasonMap[t.close_reason] || 'badge-low';
+            html += `<tr>
+                <td class="text-white/80 font-medium">${t.symbol}</td>
+                <td><span class="badge ${sideClass}">${t.side}</span></td>
+                <td>${t.quantity}</td>
+                <td>${fmt(t.entry_price, 2)}</td>
+                <td>${fmt(t.exit_price, 2)}</td>
+                <td class="${pnlClass(t.realized_pnl)}">${pnlSign(t.realized_pnl)}${fmt(t.realized_pnl)} (${pnlSign(t.realized_pnl_pct)}${fmt(t.realized_pnl_pct,1)}%)</td>
+                <td><span class="badge ${reasonClass}">${t.close_reason}</span></td>
+                <td class="text-white/20">${t.signal_type || '--'}</td>
+                <td class="text-white/20">${toIST(t.closed_at)}</td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+        document.getElementById('trades-table').innerHTML = html;
+    }
+}
+
+function renderOrders(orders) {
+    if (!orders || orders.length === 0) {
+        document.getElementById('orders-table').innerHTML = '<div class="empty-state">No orders yet</div>';
+        return;
+    }
+    let html = '<table><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Fill Price</th><th>Conviction</th><th>Size %</th><th>SL</th><th>TP</th><th>Reason</th><th>Time</th></tr></thead><tbody>';
+    for (const o of orders) {
+        const sideClass = o.side === 'BUY' ? 'badge-buy' : 'badge-sell';
+        const convClass = {high:'badge-high', medium:'badge-medium', low:'badge-low'}[o.conviction] || 'badge-low';
+        html += `<tr>
+            <td class="text-white/80 font-medium">${o.symbol}</td>
+            <td><span class="badge ${sideClass}">${o.side}</span></td>
+            <td>${o.quantity}</td>
+            <td>${o.fill_price ? fmt(o.fill_price, 2) : '--'}</td>
+            <td><span class="badge ${convClass}">${o.conviction}</span></td>
+            <td>${fmt(o.position_size_pct, 1)}%</td>
+            <td class="text-red-400/60">${o.stop_loss ? fmt(o.stop_loss, 2) : '--'}</td>
+            <td class="text-green-400/60">${o.take_profit ? fmt(o.take_profit, 2) : '--'}</td>
+            <td class="text-white/30 text-[10px]" title="${o.notes || ''}">${(o.notes || '--').substring(0, 40)}</td>
+            <td class="text-white/20">${toIST(o.filled_at || o.created_at)}</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('orders-table').innerHTML = html;
+}
+
+async function closePosition(id) {
+    if (!confirm('Close this position at market price?')) return;
+    const resp = await fetch('/api/trading/close/' + id, {method: 'POST'});
+    const data = await resp.json();
+    if (data.error) alert(data.error);
+    refreshData();
+}
+
+async function resetAccount() {
+    if (!confirm('Reset paper trading account? This will wipe all positions, orders, and trade history.')) return;
+    await fetch('/api/trading/reset', {method: 'POST'});
+    refreshData();
+}
+
+// Initial load
+refreshData();
+// Auto-refresh every 60s
+setInterval(refreshData, 60000);
+</script>
+{% endblock %}

@@ -18,7 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from narad.models import (
     Base, Source, Article, Event, EventArticle, Entity, EntityMention,
     EntityRelation, ThreatMatrix, ThreatMatrixHistory, MarketDataPoint,
-    Signal, Briefing, FetchLog,
+    Signal, SignalOutcome, Briefing, FetchLog,
+    PaperAccount, PaperOrder, PaperPosition, PaperTrade,
 )
 
 
@@ -67,6 +68,9 @@ async def patched_session(db_engine):
         "narad.intel.geospatial.async_session",
         "narad.intel.commodity.async_session",
         "narad.intel.query.async_session",
+        "narad.intel.backtest.async_session",
+        "narad.intel.trader.async_session",
+        "narad.intel.portfolio.async_session",
         "narad.pipeline.clusterer.async_session",
         "narad.pipeline.briefing.async_session",
         "narad.pipeline.graph_builder.async_session",
@@ -176,4 +180,56 @@ def make_market_point(symbol="BZ=F", price=85.0, change_1d=3.5):
         change_7d=1.2,
         change_30d=-2.0,
         fetched_at=datetime.now(timezone.utc),
+    )
+
+
+SYMBOL_NAMES = {
+    "BZ=F": ("Brent Crude Oil", "commodity", "USD/barrel"),
+    "CL=F": ("WTI Crude Oil", "commodity", "USD/barrel"),
+    "GC=F": ("Gold", "commodity", "USD/oz"),
+    "NG=F": ("Natural Gas", "commodity", "USD/MMBtu"),
+    "INR=X": ("USD/INR", "forex", "INR per USD"),
+    "^NSEI": ("Nifty 50", "index", "points"),
+}
+
+
+def make_market_point_at(symbol="BZ=F", price=85.0, fetched_at=None, change_1d=0.0):
+    """Create a market point at a specific time — for backtest tests."""
+    name, category, unit = SYMBOL_NAMES.get(symbol, ("Unknown", "commodity", "USD"))
+    return MarketDataPoint(
+        symbol=symbol,
+        name=name,
+        category=category,
+        unit=unit,
+        price=price,
+        change_1d=change_1d,
+        change_7d=0.0,
+        change_30d=0.0,
+        fetched_at=fetched_at or datetime.now(timezone.utc),
+    )
+
+
+def make_signal_outcome(
+    signal_id=1,
+    signal_type="commodity",
+    rule_id="hormuz_oil",
+    severity="high",
+    hit_rate=65.0,
+    verdict="hit",
+    detected_at=None,
+    evaluated_at=None,
+):
+    now = datetime.now(timezone.utc)
+    return SignalOutcome(
+        signal_id=signal_id,
+        signal_type=signal_type,
+        rule_id=rule_id,
+        severity=severity,
+        detected_at=detected_at or now - timedelta(days=5),
+        symbols_json=json.dumps(["BZ=F"]),
+        trigger_prices_json=json.dumps({"BZ=F": 85.0}),
+        results_json=json.dumps({"BZ=F": {"trigger_price": 85.0, "windows": {}}}),
+        hit_rate=hit_rate,
+        verdict=verdict,
+        evaluated_at=evaluated_at or now,
     )

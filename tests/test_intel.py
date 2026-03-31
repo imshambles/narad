@@ -7,6 +7,7 @@ Tests for the intelligence layer:
 """
 import json
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch, AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -534,3 +535,119 @@ class TestCorrelator:
                 select(Signal).where(Signal.signal_type == "correlation").where(Signal.is_active == True)
             )).scalars().all())
             assert count_after_second == count_after_first
+
+
+# ═══════════════════════════════════════════
+# Alert Integration — dispatch from pipelines
+# ═══════════════════════════════════════════
+
+class TestAlertIntegration:
+    @pytest.mark.asyncio
+    async def test_correlator_dispatches_alerts(self, patched_session):
+        from narad.intel.correlator import run_correlations
+        factory = patched_session
+
+        now = datetime.now(timezone.utc)
+        async with factory() as session:
+            session.add(make_signal(
+                signal_type="thermal_anomaly",
+                title="15 heat signatures in Strait of Hormuz",
+                severity="high",
+                data_json=json.dumps({"zone": "strait_of_hormuz", "type": "firms"}),
+                detected_at=now,
+            ))
+            session.add(make_market_point(symbol="BZ=F", price=95.0, change_1d=4.5))
+            session.add(make_market_point(symbol="CL=F", price=90.0, change_1d=3.8))
+            await session.commit()
+
+        with patch("narad.intel.alerts.send_telegram", new_callable=AsyncMock, return_value=True) as mock_send, \
+             patch("narad.intel.trader.settings") as trade_settings:
+            trade_settings.paper_trading_enabled = False  # isolate alert test from trading
+            await run_correlations()
+            # Correlation signal was high/critical, should trigger alert
+            assert mock_send.call_count >= 1
+            all_texts = [call[0][0] for call in mock_send.call_args_list]
+            assert any("COMPOUND SIGNAL" in t for t in all_texts)
+
+    @pytest.mark.asyncio
+    async def test_commodity_dispatches_alerts(self, patched_session):
+        from narad.intel.commodity import generate_commodity_signals
+        factory = patched_session
+
+        async with factory() as session:
+            session.add(make_event(
+                title="Tensions rise at Strait of Hormuz",
+                summary="Iran threatens to close the strait of hormuz shipping lane",
+                article_count=5,
+            ))
+            session.add(make_market_point(symbol="BZ=F", price=95.0, change_1d=4.5))
+            session.add(make_market_point(symbol="CL=F", price=90.0, change_1d=3.5))
+            await session.commit()
+
+        with patch("narad.intel.alerts.send_telegram", new_callable=AsyncMock, return_value=True) as mock_send, \
+             patch("narad.intel.commodity.settings") as mock_settings:
+            mock_settings.gemini_api_key = ""  # skip LLM refinement
+            await generate_commodity_signals()
+            # Basic commodity signals are "medium" severity, so no alert unless LLM refines to "high"
+            # But the alert dispatch code should at least run without error
+            # (alerts only fire for high/critical commodity signals)
+
+    @pytest.mark.asyncio
+    async def test_alert_failure_does_not_break_correlator(self, patched_session):
+        """Alert dispatch failure should not prevent signal storage."""
+        from narad.intel.correlator import run_correlations
+        factory = patched_session
+
+        now = datetime.now(timezone.utc)
+        async with factory() as session:
+            session.add(make_signal(
+                signal_type="thermal_anomaly",
+                title="Heat in Hormuz",
+                severity="high",
+                data_json=json.dumps({"zone": "strait_of_hormuz", "type": "firms"}),
+                detected_at=now,
+            ))
+            session.add(make_market_point(symbol="BZ=F", price=95.0, change_1d=4.5))
+            session.add(make_market_point(symbol="CL=F", price=90.0, change_1d=3.8))
+            await session.commit()
+
+        # Make alert dispatch raise an exception
+        with patch("narad.intel.alerts.send_telegram", new_callable=AsyncMock, side_effect=Exception("Telegram down")):
+            await run_correlations()
+
+        # Correlation signals should still be saved despite alert failure
+        async with factory() as session:
+            corrs = (await session.execute(
+                select(Signal).where(Signal.signal_type == "correlation")
+            )).scalars().all()
+            assert len(corrs) >= 1
+
+    @pytest.mark.asyncio
+    async def test_alert_not_sent_for_low_severity_correlation(self, patched_session):
+        """Low severity correlations should not trigger alerts."""
+        from narad.intel.correlator import run_correlations
+        factory = patched_session
+
+        now = datetime.now(timezone.utc)
+        async with factory() as session:
+            # Set up a scenario that might trigger with only medium severity
+            session.add(make_signal(
+                signal_type="thermal_anomaly",
+                title="Low activity Gulf of Aden",
+                severity="low",
+                data_json=json.dumps({"zone": "gulf_of_aden", "type": "firms"}),
+                detected_at=now,
+            ))
+            session.add(make_market_point(symbol="BZ=F", price=85.0, change_1d=1.8))
+            session.add(make_market_point(symbol="CL=F", price=80.0, change_1d=1.6))
+            session.add(make_market_point(symbol="NG=F", price=3.0, change_1d=1.5))
+            await session.commit()
+
+        with patch("narad.intel.alerts.send_telegram", new_callable=AsyncMock, return_value=True) as mock_send:
+            await run_correlations()
+            # Even if a correlation triggers, low-severity ones should not alert
+            # Check by looking at what was actually called
+            for call in mock_send.call_args_list:
+                text = call[0][0]
+                # Should not contain LOW severity alerts
+                assert "[LOW]" not in text

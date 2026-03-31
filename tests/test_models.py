@@ -16,12 +16,12 @@ from sqlalchemy import select
 from narad.models import (
     Source, Article, Event, EventArticle, Entity, EntityRelation,
     EntityMention, ThreatMatrix, ThreatMatrixHistory,
-    MarketDataPoint, Signal, Briefing, FetchLog,
+    MarketDataPoint, Signal, SignalOutcome, Briefing, FetchLog,
 )
 from narad.intel.commodity import COMMODITY_MAP, HISTORICAL_PRECEDENTS, find_precedents
 from tests.conftest import (
     make_source, make_article, make_event, make_entity,
-    make_signal, make_market_point,
+    make_signal, make_market_point, make_signal_outcome,
 )
 
 
@@ -358,3 +358,65 @@ class TestGeointConfig:
         assert "IAF" in MILITARY_CALLSIGNS  # Indian Air Force
         assert "PAF" in MILITARY_CALLSIGNS  # Pakistan Air Force
         assert "FORTE" in MILITARY_CALLSIGNS  # US surveillance
+
+
+# ═══════════════════════════════════════════
+# SignalOutcome Model
+# ═══════════════════════════════════════════
+
+class TestSignalOutcomeModel:
+    @pytest.mark.asyncio
+    async def test_create_signal_outcome(self, db_session):
+        outcome = make_signal_outcome(signal_id=1)
+        db_session.add(outcome)
+        await db_session.flush()
+        assert outcome.id is not None
+        assert outcome.signal_type == "commodity"
+        assert outcome.hit_rate == 65.0
+        assert outcome.verdict == "hit"
+
+    @pytest.mark.asyncio
+    async def test_signal_outcome_unique_signal_id(self, db_session):
+        o1 = make_signal_outcome(signal_id=42)
+        o2 = make_signal_outcome(signal_id=42)
+        db_session.add(o1)
+        await db_session.flush()
+        db_session.add(o2)
+        with pytest.raises(Exception):  # IntegrityError
+            await db_session.flush()
+
+    @pytest.mark.asyncio
+    async def test_signal_outcome_json_roundtrip(self, db_session):
+        results = {
+            "BZ=F": {
+                "trigger_price": 85.0,
+                "direction": "long",
+                "windows": {
+                    "1h": {"price": 85.5, "change_pct": 0.59, "direction_correct": True},
+                    "24h": {"price": 87.0, "change_pct": 2.35, "direction_correct": True},
+                },
+            }
+        }
+        outcome = make_signal_outcome(signal_id=99)
+        outcome.results_json = json.dumps(results)
+        db_session.add(outcome)
+        await db_session.flush()
+
+        loaded = json.loads(outcome.results_json)
+        assert loaded["BZ=F"]["trigger_price"] == 85.0
+        assert loaded["BZ=F"]["windows"]["1h"]["direction_correct"] is True
+
+    @pytest.mark.asyncio
+    async def test_signal_outcome_defaults(self, db_session):
+        outcome = SignalOutcome(
+            signal_id=200,
+            signal_type="correlation",
+            detected_at=datetime.now(timezone.utc),
+            evaluated_at=datetime.now(timezone.utc),
+        )
+        db_session.add(outcome)
+        await db_session.flush()
+        assert outcome.rule_id == ""
+        assert outcome.severity == "low"
+        assert outcome.hit_rate == 0.0
+        assert outcome.verdict == "pending"

@@ -280,3 +280,17 @@ async def run_intelligence_analysis() -> None:
 
         await session.commit()
         logger.info(f"Intel analyst: produced {len(assessments)} assessments")
+
+        # Send Telegram alerts for significant assessments
+        try:
+            from narad.intel.alerts import send_alert_batch
+            new_assessments = await session.execute(
+                select(Signal)
+                .where(Signal.signal_type == "assessment")
+                .where(Signal.is_active == True)
+                .where(Signal.severity.in_(["medium", "high", "critical"]))
+                .where(Signal.detected_at >= now - timedelta(minutes=2))
+            )
+            await send_alert_batch(list(new_assessments.scalars().all()))
+        except Exception as e:
+            logger.debug(f"Alert dispatch failed: {e}")

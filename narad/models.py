@@ -267,3 +267,127 @@ class Signal(Base):
         Index("idx_signal_severity", "severity"),
         Index("idx_signal_time", "detected_at"),
     )
+
+
+class SignalOutcome(Base):
+    """Backtest result: how a signal's predictions compared to actual market moves."""
+    __tablename__ = "signal_outcomes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    signal_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    signal_type: Mapped[str] = mapped_column(String, nullable=False)
+    rule_id: Mapped[str] = mapped_column(String, default="")  # correlation rule_id or commodity bucket_name
+    severity: Mapped[str] = mapped_column(String, default="low")
+    detected_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    symbols_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # tracked symbols
+    trigger_prices_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    results_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # per-symbol, per-window results
+    hit_rate: Mapped[float] = mapped_column(Float, default=0.0)  # 0-100
+    verdict: Mapped[str] = mapped_column(String, default="pending")  # hit, partial, miss
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    __table_args__ = (
+        Index("idx_so_signal", "signal_id"),
+        Index("idx_so_type", "signal_type"),
+        Index("idx_so_verdict", "verdict"),
+    )
+
+
+# ──────────────────────────────────────────────
+# PAPER TRADING SYSTEM
+# ──────────────────────────────────────────────
+
+class PaperAccount(Base):
+    """Paper trading account — tracks capital and state."""
+    __tablename__ = "paper_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False, default="default")
+    initial_capital: Mapped[float] = mapped_column(Float, nullable=False, default=1000000.0)
+    current_cash: Mapped[float] = mapped_column(Float, nullable=False, default=1000000.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class PaperOrder(Base):
+    """Every order generated from an intelligence signal."""
+    __tablename__ = "paper_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("paper_accounts.id"), nullable=False)
+    signal_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)  # e.g. HAL.NS, BZ=F
+    exchange: Mapped[str] = mapped_column(String, nullable=False)  # NSE, MCX, GLOBAL
+    side: Mapped[str] = mapped_column(String, nullable=False)  # BUY or SELL
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    target_price: Mapped[float] = mapped_column(Float, nullable=False)  # price at order creation
+    fill_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="pending")  # pending, filled, cancelled, rejected
+    conviction: Mapped[str] = mapped_column(String, default="medium")
+    position_size_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    stop_loss_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    take_profit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    filled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_po_account", "account_id"),
+        Index("idx_po_signal", "signal_id"),
+        Index("idx_po_status", "status"),
+        Index("idx_po_symbol", "symbol"),
+    )
+
+
+class PaperPosition(Base):
+    """Open paper trading position."""
+    __tablename__ = "paper_positions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("paper_accounts.id"), nullable=False)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
+    exchange: Mapped[str] = mapped_column(String, nullable=False)
+    side: Mapped[str] = mapped_column(String, nullable=False)  # LONG or SHORT
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    avg_entry_price: Mapped[float] = mapped_column(Float, nullable=False)
+    current_price: Mapped[float] = mapped_column(Float, nullable=False)
+    unrealized_pnl: Mapped[float] = mapped_column(Float, default=0.0)
+    unrealized_pnl_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    stop_loss_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    take_profit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    signal_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    opened_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    last_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    __table_args__ = (
+        Index("idx_pp_account", "account_id"),
+        Index("idx_pp_symbol", "symbol"),
+    )
+
+
+class PaperTrade(Base):
+    """Closed paper trade — realized P&L record."""
+    __tablename__ = "paper_trades"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("paper_accounts.id"), nullable=False)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
+    exchange: Mapped[str] = mapped_column(String, nullable=False)
+    side: Mapped[str] = mapped_column(String, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    entry_price: Mapped[float] = mapped_column(Float, nullable=False)
+    exit_price: Mapped[float] = mapped_column(Float, nullable=False)
+    realized_pnl: Mapped[float] = mapped_column(Float, nullable=False)
+    realized_pnl_pct: Mapped[float] = mapped_column(Float, nullable=False)
+    signal_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    signal_type: Mapped[str] = mapped_column(String, default="")
+    signal_severity: Mapped[str] = mapped_column(String, default="")
+    opened_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    closed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    close_reason: Mapped[str] = mapped_column(String, nullable=False)  # stop_loss, take_profit, signal_expired, manual
+
+    __table_args__ = (
+        Index("idx_pt_account", "account_id"),
+        Index("idx_pt_symbol", "symbol"),
+        Index("idx_pt_closed", "closed_at"),
+    )

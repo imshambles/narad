@@ -16,6 +16,7 @@ async def lifespan(app: FastAPI):
     # Startup
     await init_db()
     await seed_sources()
+    await seed_paper_account()
     from narad.scheduler import start_scheduler, scheduler
     await start_scheduler()
     yield
@@ -55,6 +56,8 @@ async def seed_sources():
         {"name": "Reddit OSINT", "source_type": "reddit", "url": "https://reddit.com", "fetch_interval_sec": 600},
         {"name": "Think Tanks", "source_type": "thinktank", "url": "https://thinktanks.narad", "fetch_interval_sec": 900},
         {"name": "OSINT Twitter", "source_type": "osint_twitter", "url": "https://twitter.com", "fetch_interval_sec": 600},
+        # Telegram OSINT channels — fastest source, breaks news 15-45 min before wire services
+        {"name": "OSINT Telegram", "source_type": "osint_telegram", "url": "https://telegram.org", "fetch_interval_sec": 120},
     ]
 
     # Sources to deactivate (biased/propaganda)
@@ -83,6 +86,35 @@ async def seed_sources():
         await session.commit()
 
 
+async def seed_paper_account():
+    """Create default paper trading account if it doesn't exist."""
+    from narad.config import settings
+    if not settings.paper_trading_enabled:
+        return
+
+    from sqlalchemy import select
+    from narad.database import async_session
+    from narad.models import PaperAccount
+    from datetime import datetime, timezone
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(PaperAccount).where(PaperAccount.name == "default").limit(1)
+        )
+        if result.scalar_one_or_none() is None:
+            session.add(PaperAccount(
+                name="default",
+                initial_capital=settings.paper_trading_capital,
+                current_cash=settings.paper_trading_capital,
+                created_at=datetime.now(timezone.utc),
+                is_active=True,
+            ))
+            await session.commit()
+            logging.getLogger(__name__).info(
+                f"Paper trading account created: {settings.paper_trading_capital:,.0f} INR"
+            )
+
+
 app = FastAPI(title="Narad", lifespan=lifespan)
 
 static_dir = Path(__file__).parent / "static"
@@ -92,14 +124,22 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 from narad.api.articles import router as articles_router
 from narad.api.events import router as events_router
 from narad.api.intel import router as intel_router
+from narad.api.trading import router as trading_router
 from narad.web.views import router as web_router
 
 app.include_router(articles_router, prefix="/api")
 app.include_router(events_router, prefix="/api")
 app.include_router(intel_router, prefix="/api")
+app.include_router(trading_router, prefix="/api")
 app.include_router(web_router)
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/ping")
+async def ping():
+    """Ultra-lightweight ping for keep-alive services."""
+    return "pong"

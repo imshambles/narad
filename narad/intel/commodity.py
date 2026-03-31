@@ -17,9 +17,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy.orm import joinedload
+
 from narad.config import settings
 from narad.database import async_session
-from narad.models import Event, MarketDataPoint, Signal
+from narad.models import Article, Event, EventArticle, MarketDataPoint, Signal, Source
 
 logger = logging.getLogger(__name__)
 
@@ -242,26 +244,52 @@ async def generate_commodity_signals() -> None:
     async with async_session() as session:
         now = datetime.now(timezone.utc)
 
-        # Check if we already ran recently
+        # Check if we already ran recently (5 min cooldown — reduced from 25 min
+        # to allow priority pipeline fast-tracking)
         recent = await session.execute(
             select(Signal)
             .where(Signal.signal_type == "commodity")
-            .where(Signal.detected_at >= now - timedelta(minutes=25))
+            .where(Signal.detected_at >= now - timedelta(minutes=5))
             .limit(1)
         )
         if recent.scalar_one_or_none():
             return
 
-        # Get recent events
+        # Get recent events — include unsummarized events from priority sources
+        # so fast-tracked Telegram events aren't skipped
         events_stmt = (
             select(Event)
             .where(Event.is_active == True)
-            .where(Event.summary.isnot(None))
-            .order_by(Event.article_count.desc())
-            .limit(30)
+            .order_by(Event.last_updated_at.desc())
+            .limit(50)
         )
         result = await session.execute(events_stmt)
-        events = list(result.scalars().all())
+        all_events = list(result.scalars().all())
+
+        # Identify events with priority source articles (Telegram)
+        priority_event_ids = set()
+        for event in all_events:
+            ea_result = await session.execute(
+                select(EventArticle.id)
+                .join(Article, Article.id == EventArticle.article_id)
+                .join(Source, Source.id == Article.source_id)
+                .where(EventArticle.event_id == event.id)
+                .where(Source.source_type.in_(["osint_telegram"]))
+                .limit(1)
+            )
+            if ea_result.scalar_one_or_none():
+                priority_event_ids.add(event.id)
+
+        # Sort: priority-sourced events first, then by article count
+        # Priority events get a virtual boost of +100 articles for sorting
+        all_events.sort(
+            key=lambda e: (
+                100 if e.id in priority_event_ids else 0
+            ) + e.article_count,
+            reverse=True,
+        )
+        # Take top 30, include events even without summaries (use title for matching)
+        events = all_events[:30]
 
         # Get market data for context
         market = {}
@@ -285,6 +313,7 @@ async def generate_commodity_signals() -> None:
         triggered_buckets = {}
         for event in events:
             text = f"{event.title} {event.summary or ''} {event.category or ''}".lower()
+            is_priority = event.id in priority_event_ids
 
             for trigger_keys, bucket in COMMODITY_MAP.items():
                 keywords = trigger_keys.split("|")
@@ -296,11 +325,15 @@ async def generate_commodity_signals() -> None:
                             "trigger_keys": trigger_keys,
                             "triggering_events": [],
                             "market_context": {},
+                            "has_priority_source": False,
                         }
                     triggered_buckets[bucket_name]["triggering_events"].append({
                         "title": event.title[:80],
                         "articles": event.article_count,
+                        "priority": is_priority,
                     })
+                    if is_priority:
+                        triggered_buckets[bucket_name]["has_priority_source"] = True
 
         # Enrich with market data, price snapshots, and historical precedents
         for name, tb in triggered_buckets.items():
@@ -320,11 +353,13 @@ async def generate_commodity_signals() -> None:
             # Store raw signals without LLM refinement
             for name, tb in triggered_buckets.items():
                 bucket = tb["bucket"]
+                # Boost severity for signals triggered by priority sources (Telegram OSINT)
+                severity = "high" if tb.get("has_priority_source") else "medium"
                 session.add(Signal(
                     signal_type="commodity",
                     title=f"Trading signal: {name}",
                     description=f"Triggered by {len(tb['triggering_events'])} events. Affects {len(bucket.get('stocks_india',[]))} Indian stocks and {len(bucket.get('commodities',[]))} commodities.",
-                    severity="medium",
+                    severity=severity,
                     entity_ids_json=json.dumps([]),
                     data_json=json.dumps({
                         "bucket_name": name,
@@ -335,6 +370,7 @@ async def generate_commodity_signals() -> None:
                         "market_context": tb["market_context"],
                         "price_at_trigger": tb.get("price_at_trigger", {}),
                         "precedents": tb.get("precedents", []),
+                        "priority_source": tb.get("has_priority_source", False),
                     }),
                     detected_at=now,
                     is_active=True,
@@ -342,6 +378,27 @@ async def generate_commodity_signals() -> None:
 
         await session.commit()
         logger.info(f"Commodity signals: {len(triggered_buckets)} buckets triggered")
+
+        # Send Telegram alerts and execute paper trades for commodity signals
+        if triggered_buckets:
+            try:
+                from narad.intel.alerts import send_alert_batch
+                new_signals_result = await session.execute(
+                    select(Signal)
+                    .where(Signal.signal_type == "commodity")
+                    .where(Signal.is_active == True)
+                    .where(Signal.severity.in_(["high", "critical"]))
+                    .where(Signal.detected_at >= now - timedelta(minutes=2))
+                )
+                new_signals = list(new_signals_result.scalars().all())
+                await send_alert_batch(new_signals)
+
+                # Execute paper trades
+                from narad.intel.trader import execute_signal_trades
+                for sig in new_signals:
+                    await execute_signal_trades(sig)
+            except Exception as e:
+                logger.debug(f"Alert/trade dispatch failed: {e}")
 
 
 async def _refine_with_llm(session, triggered_buckets, market, now):

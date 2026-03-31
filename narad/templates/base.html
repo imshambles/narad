@@ -45,8 +45,11 @@
             <div class="flex items-center gap-4 sm:gap-6 min-w-0">
                 <a href="/" class="font-mono text-xs sm:text-sm font-medium tracking-widest text-white/80 flex-shrink-0">NARAD</a>
                 <nav class="flex gap-0.5">
-                    <a href="/" class="px-2 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-mono tracking-wide transition-colors flex items-center bg-white/10 text-white">
+                    <a href="/" class="px-2 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-mono tracking-wide transition-colors flex items-center {% if active_tab == 'briefing' %}bg-white/10 text-white{% else %}text-white/40 hover:text-white/70{% endif %}">
                         COMMAND
+                    </a>
+                    <a href="/trading" class="px-2 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-mono tracking-wide transition-colors flex items-center {% if active_tab == 'trading' %}bg-white/10 text-white{% else %}text-white/40 hover:text-white/70{% endif %}">
+                        TRADING
                     </a>
                 </nav>
             </div>

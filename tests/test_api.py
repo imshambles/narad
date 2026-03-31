@@ -15,10 +15,10 @@ from sqlalchemy import select
 from unittest.mock import patch, AsyncMock
 
 from narad.models import (
-    Entity, EntityRelation, MarketDataPoint, Signal,
+    Entity, EntityRelation, MarketDataPoint, Signal, SignalOutcome,
     ThreatMatrix, ThreatMatrixHistory,
 )
-from tests.conftest import make_entity, make_signal, make_market_point
+from tests.conftest import make_entity, make_signal, make_market_point, make_signal_outcome
 
 
 @pytest_asyncio.fixture
@@ -304,3 +304,64 @@ class TestWebRoutes:
     async def test_health_endpoint(self, app_client, seeded_db):
         resp = await app_client.get("/health")
         assert resp.status_code == 200
+
+
+# ═══════════════════════════════════════════
+# Backtest API
+# ═══════════════════════════════════════════
+
+class TestBacktestAPI:
+    @pytest.mark.asyncio
+    async def test_get_backtest_empty(self, app_client, seeded_db):
+        resp = await app_client.get("/api/intel/backtest")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_evaluated"] == 0
+        assert "message" in data
+
+    @pytest.mark.asyncio
+    async def test_get_backtest_with_data(self, app_client, seeded_db):
+        factory = seeded_db
+        async with factory() as session:
+            session.add(make_signal_outcome(signal_id=1001, hit_rate=75, verdict="hit", signal_type="commodity"))
+            session.add(make_signal_outcome(signal_id=1002, hit_rate=30, verdict="miss", signal_type="correlation"))
+            await session.commit()
+
+        resp = await app_client.get("/api/intel/backtest")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_evaluated"] == 2
+        assert "verdicts" in data
+        assert "by_signal_type" in data
+        assert "recent" in data
+
+    @pytest.mark.asyncio
+    async def test_run_backtest_manually(self, app_client, seeded_db):
+        resp = await app_client.post("/api/intel/backtest/run")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "total_evaluated" in data
+
+
+# ═══════════════════════════════════════════
+# Alert API
+# ═══════════════════════════════════════════
+
+class TestAlertAPI:
+    @pytest.mark.asyncio
+    async def test_alert_test_not_configured(self, app_client, seeded_db):
+        with patch("narad.intel.alerts.settings") as ms:
+            ms.telegram_bot_token = ""
+            ms.telegram_chat_id = ""
+            resp = await app_client.post("/api/intel/alerts/test")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["sent"] is False
+
+    @pytest.mark.asyncio
+    async def test_alert_test_success(self, app_client, seeded_db):
+        with patch("narad.intel.alerts.send_telegram", new_callable=AsyncMock, return_value=True):
+            resp = await app_client.post("/api/intel/alerts/test")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["sent"] is True
